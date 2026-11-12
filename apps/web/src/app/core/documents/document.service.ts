@@ -9,6 +9,7 @@ import { catchError, map, Observable, of, switchMap } from 'rxjs';
 
 import {
   DocumentItem,
+  DownloadUrlResponse,
   UploadProgressState,
   UploadSessionRequest,
   UploadSessionResponse,
@@ -86,6 +87,22 @@ export class DocumentService {
       .post<ApiEnvelope<DocumentItem>>(
         `/api/v1/workspaces/${workspaceId}/documents/${documentId}/complete`,
         {}
+      )
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * Solicita una URL prefirmada temporal para la descarga de un documento autorizado (CDM-33).
+   */
+  getDownloadUrl(
+    workspaceId: string,
+    documentId: string,
+    expiresInSeconds = 900
+  ): Observable<DownloadUrlResponse> {
+    return this.http
+      .post<ApiEnvelope<DownloadUrlResponse>>(
+        `/api/v1/workspaces/${workspaceId}/documents/${documentId}/download-url`,
+        { expires_in_seconds: expiresInSeconds }
       )
       .pipe(map((res) => res.data));
   }

@@ -41,6 +41,13 @@ export interface UploadSessionResponse {
   required_headers: Record<string, string>;
 }
 
+export interface DownloadUrlResponse {
+  document_id: string;
+  original_filename: string;
+  download_url: string;
+  expires_in_seconds: number;
+}
+
 export type UploadPhase =
   | 'idle'
   | 'requesting'
