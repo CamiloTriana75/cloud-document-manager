@@ -1,7 +1,7 @@
 <a class="skip-link" href="#main">Saltar al contenido principal</a>
 
 <header class="app-header">
-  <div class="brand">
+  <a routerLink="/" class="brand">
     <svg
       class="brand-icon"
       width="20"
@@ -16,7 +16,29 @@
       <path d="M14 2v6h6" />
     </svg>
     <span>Cloud Document Manager</span>
-  </div>
+  </a>
+
+  <nav class="nav-actions" aria-label="Navegación de usuario">
+    @if (authService.isAuthenticated()) {
+      <div class="user-menu">
+        <span class="user-badge" [title]="authService.currentUser()?.email">
+          {{ authService.currentUser()?.name || authService.currentUser()?.email }}
+        </span>
+        <button
+          type="button"
+          class="btn-nav btn-logout"
+          (click)="onLogout()"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    } @else {
+      <div class="auth-links">
+        <a routerLink="/auth/login" class="nav-link">Iniciar sesión</a>
+        <a routerLink="/auth/register" class="btn-nav btn-register">Crear cuenta</a>
+      </div>
+    }
+  </nav>
 </header>
 
 <main id="main" class="app-main">

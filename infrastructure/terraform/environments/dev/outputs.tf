@@ -59,3 +59,23 @@ output "frontend_url" {
   description = "URL HTTPS pública de la SPA Angular."
   value       = module.frontend_hosting.cloudfront_url
 }
+
+output "cognito_user_pool_id" {
+  description = "ID del User Pool de Cognito para autenticación."
+  value       = module.cognito.user_pool_id
+}
+
+output "cognito_user_pool_arn" {
+  description = "ARN del User Pool de Cognito."
+  value       = module.cognito.user_pool_arn
+}
+
+output "cognito_client_id" {
+  description = "ID del App Client público de Cognito para la SPA Angular."
+  value       = module.cognito.client_id
+}
+
+output "cognito_issuer_url" {
+  description = "URL del emisor JWT de Cognito (iss)."
+  value       = module.cognito.issuer_url
+}
