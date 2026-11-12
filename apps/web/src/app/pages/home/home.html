@@ -1,0 +1,46 @@
+<section class="card" aria-labelledby="api-status-title">
+  <h1 id="api-status-title">Estado de la API</h1>
+
+  @if (isLoading()) {
+    <div class="skeleton" role="status" aria-label="Consultando estado de la API"></div>
+  } @else if (isOk()) {
+    <div class="status status-ok" role="status">
+      <svg
+        class="dot"
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+      >
+        <circle cx="6" cy="6" r="6" fill="currentColor" />
+      </svg>
+      <div>
+        <p class="status-title">Operativa</p>
+        <p class="status-detail">
+          {{ status()!.service }} · v{{ status()!.version }}
+        </p>
+      </div>
+    </div>
+  } @else {
+    <div class="status status-error">
+      <svg
+        class="dot"
+        width="12"
+        height="12"
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+      >
+        <circle cx="6" cy="6" r="6" fill="currentColor" />
+      </svg>
+      <div>
+        <p class="status-title">No disponible</p>
+        <p class="status-detail">
+          No se pudo contactar la API. Verifica que esté en ejecución.
+        </p>
+        <button type="button" class="btn-retry" (click)="refresh()">
+          Reintentar
+        </button>
+      </div>
+    </div>
+  }
+</section>
