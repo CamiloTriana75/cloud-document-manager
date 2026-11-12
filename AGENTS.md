@@ -52,19 +52,23 @@ Reglas no negociables:
 
 Un usuario puede pertenecer a varios workspaces. El usuario debe poder seleccionar el workspace activo, pero esa selección del cliente nunca constituye prueba de autorización.
 
-### 3.2 Roles iniciales propuestos
+### 3.2 Roles iniciales
 
-Usar como base estos roles, documentando cualquier cambio en un ADR:
+Modelo de roles acordado (ADR-0001, 2026-11-12):
 
-- `OWNER`: control completo del workspace y sus miembros.
-- `ADMIN`: administra miembros y documentos del workspace.
-- `MEMBER`: puede consultar, subir y descargar documentos del workspace.
+- `OWNER`: control completo del workspace y sus miembros. Transferencia/eliminación del workspace.
+- `ADMIN`: administra miembros, roles y documentos del workspace.
+- `EDITOR`: como `MEMBER`, más eliminación lógica de documentos y gestión de metadatos.
+- `MEMBER`: puede subir, listar, consultar y descargar documentos del workspace.
+- `VIEWER`: solo lectura — consultar catálogo, detalle y descargar documentos.
+
+Jerarquía: `VIEWER` < `MEMBER` < `EDITOR` < `ADMIN` < `OWNER`.
 
 Reglas iniciales sugeridas para el MVP:
 
 - Toda operación sobre un documento exige una membership activa en el workspace dueño del documento.
-- `OWNER` y `ADMIN` pueden administrar miembros y eliminar documentos.
-- `MEMBER` puede subir, listar, consultar y descargar documentos.
+- `OWNER` y `ADMIN` administran miembros y roles. `EDITOR` puede eliminar documentos de forma lógica; `ADMIN` puede eliminar cualquier documento del workspace.
+- `MEMBER` y `VIEWER` no ejecutan operaciones administrativas.
 - El acceso entre tenants debe denegarse aunque el usuario conozca o adivine un UUID, URL, `document_id` o `storage_key`.
 - No confiar en `workspace_id`, `tenant_id`, rol, propietario o `storage_key` enviados por el frontend. Resolver el contexto desde la identidad autenticada y la membership persistida en el backend.
 
@@ -536,9 +540,10 @@ Antes de actuar:
 
 1. Leer este `AGENTS.md`, `README.md` y la documentación relevante.
 2. Inspeccionar el estado real del repositorio, ramas, cambios sin commit y versiones instaladas. No asumir que el repositorio está vacío ni sobrescribir trabajo existente.
-3. Identificar el issue Jira y sus subtareas/criterios de aceptación si se dispone de acceso. No inventar estados ni cerrar issues automáticamente.
-4. Presentar un plan breve para cambios de más de una unidad de trabajo.
-5. Implementar el cambio más pequeño que entregue valor y preserve arquitectura.
+3. Al tomar una tarea de Jira, asignarla **siempre al propietario (Camilo Triana)** y moverla a *En curso* solo cuando se empiece a trabajar en ella.
+4. Identificar el issue Jira y sus subtareas/criterios de aceptación si se dispone de acceso. No inventar estados ni cerrar issues automáticamente.
+5. Presentar un plan breve para cambios de más de una unidad de trabajo.
+6. Implementar el cambio más pequeño que entregue valor y preserve arquitectura.
 
 Durante el trabajo:
 

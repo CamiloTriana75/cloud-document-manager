@@ -13,9 +13,13 @@ Aplicación web para cargar, almacenar, procesar, consultar y descargar document
 ## 2. Usuarios y roles
 
 - Usuarios autenticados mediante Amazon Cognito.
-- Roles iniciales: `OWNER`, `ADMIN`, `MEMBER` (ver AGENTS.md §3.2).
-
-> ⚠️ **Discrepancia abierta:** CDM-1 menciona `OWNER/ADMIN/EDITOR/VIEWER`, mientras que AGENTS.md define `OWNER/ADMIN/MEMBER`. Decisión pendiente del propietario. Mientras tanto, se aplica AGENTS.md y cualquier cambio se registraría en un ADR.
+- Roles iniciales con jerarquía `VIEWER` < `MEMBER` < `EDITOR` < `ADMIN` < `OWNER` (decisión del propietario, ADR-0001):
+  - `OWNER`: control total del workspace y miembros; transferencia/eliminación.
+  - `ADMIN`: administra miembros, roles y documentos.
+  - `EDITOR`: como `MEMBER` + eliminación lógica de documentos + gestión de metadatos.
+  - `MEMBER`: sube, lista, consulta y descarga documentos.
+  - `VIEWER`: solo lectura (catálogo, detalle, descarga).
+- Detalle y consecuentes: [`adr/0001-roles-de-workspace.md`](adr/0001-roles-de-workspace.md) y AGENTS.md §3.2.
 
 ## 3. Alcance del MVP
 
