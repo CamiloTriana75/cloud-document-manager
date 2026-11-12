@@ -470,8 +470,8 @@ La CI debe fallar ante lint, type-check, pruebas o build críticos. No ocultar e
 - Separar CI (calidad) de CD (despliegue autorizado).
 - Usar OIDC para que GitHub Actions asuma roles AWS, evitando access keys permanentes en secrets, cuando la configuración lo permita.
 - Rama principal: `main`.
-- Ramas sugeridas: `feat/CDM-XX-short-description`, `fix/CDM-XX-short-description`, `chore/...`, `docs/...`.
-- Commits: `feat(scope): ...`, `fix(scope): ...`, `test(scope): ...`, `docs(scope): ...`, `refactor(scope): ...`.
+- Estrategia de ramificación: `main` (estable, releases) + `develop` (integración) + una rama por incremento/épica (`feat/inc<N>-<tema>`), **no** una rama por tarea Jira. Detalle en `docs/development/branching.md`.
+- Commits: `feat(scope): ...`, `fix(scope): ...`, `test(scope): ...`, `docs(scope): ...`, `refactor(scope): ...`, referenciando el issue Jira (ej. `feat(api): health endpoint (CDM-13)`).
 - Referenciar el issue Jira relevante en el PR y describir pruebas, riesgos y pasos de despliegue.
 
 ## 17. Roadmap y relación con Jira
