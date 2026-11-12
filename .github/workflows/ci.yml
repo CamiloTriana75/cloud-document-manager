@@ -60,7 +60,7 @@ jobs:
       - name: Migraciones (Alembic contra PostgreSQL real)
         run: uv run alembic upgrade head
 
-      - name: Pruebas (pytest: unit, contract, integration)
+      - name: "Pruebas (pytest: unit, contract, integration)"
         run: uv run pytest
 
   web:
