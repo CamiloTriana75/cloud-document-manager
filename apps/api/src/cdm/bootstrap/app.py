@@ -7,7 +7,7 @@ el adaptador HTTP y la configuración.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from cdm.adapters.inbound.http import health
+from cdm.adapters.inbound.http import auth, health
 from cdm.adapters.inbound.http.errors import register_error_handlers
 from cdm.config.settings import Settings, load_settings
 
@@ -28,6 +28,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     register_error_handlers(app)
     app.include_router(health.router)
+    app.include_router(auth.router)
     return app
 
 
