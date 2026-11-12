@@ -15,7 +15,7 @@ from cdm.config.settings import load_settings
 
 def test_postgres_responde_y_version_es_16() -> None:
     settings = load_settings()
-    engine = create_db_engine(settings)
+    engine = create_db_engine(settings, connect_args={"connect_timeout": 2})
     try:
         with engine.connect() as conn:
             version: object = conn.execute(text("SELECT version()")).scalar_one()
@@ -27,7 +27,7 @@ def test_postgres_responde_y_version_es_16() -> None:
 
 
 def test_migraciones_alembic_registradas() -> None:
-    engine = create_db_engine(load_settings())
+    engine = create_db_engine(load_settings(), connect_args={"connect_timeout": 2})
     try:
         with engine.connect() as conn:
             rows: list[str] = list(

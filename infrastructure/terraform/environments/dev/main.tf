@@ -52,3 +52,13 @@ module "apigw_http" {
 
   tags = local.tags
 }
+
+module "rds_postgres" {
+  source = "../../modules/rds-postgres"
+
+  enable_rds   = var.enable_rds
+  environment  = var.environment
+  project_name = var.project_name
+
+  tags = local.tags
+}
