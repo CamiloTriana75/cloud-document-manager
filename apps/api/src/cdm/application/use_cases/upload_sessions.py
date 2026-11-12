@@ -6,14 +6,19 @@ generación de URL prefirmada PUT para S3 y persistencia segura de metadatos pro
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from cdm.application.ports.document_repository import DocumentRepositoryPort
 from cdm.application.ports.storage import StoragePort
 from cdm.application.ports.upload_session_repository import UploadSessionRepositoryPort
-from cdm.domain.document import Document
-from cdm.domain.errors import PermissionDeniedError
+from cdm.domain.document import Document, DocumentStatus
+from cdm.domain.errors import (
+    ConflictError,
+    PermissionDeniedError,
+    UploadSessionNotFoundError,
+)
 from cdm.domain.file_policy import (
     generate_storage_key,
     validate_and_sanitize_filename,
@@ -22,8 +27,10 @@ from cdm.domain.file_policy import (
     validate_file_type,
 )
 from cdm.domain.tenant import TenantContext
-from cdm.domain.upload_session import UploadSession
+from cdm.domain.upload_session import UploadSession, UploadSessionStatus
 from cdm.domain.workspace import WorkspaceRole
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -128,4 +135,148 @@ class CreateUploadSessionUseCase:
             storage_key=storage_key,
             expires_in_seconds=self._expires_in_seconds,
             required_headers={"Content-Type": clean_content_type},
+        )
+
+
+class CancelUploadSessionUseCase:
+    """Caso de uso: Cancelar una sesión de carga prefirmada (CDM-34)."""
+
+    def __init__(
+        self,
+        upload_session_repo: UploadSessionRepositoryPort,
+        document_repo: DocumentRepositoryPort,
+        storage: StoragePort,
+    ) -> None:
+        self._upload_session_repo = upload_session_repo
+        self._document_repo = document_repo
+        self._storage = storage
+
+    def execute(self, tenant: TenantContext, upload_session_id: UUID) -> None:
+        # Requiere rol MEMBER o superior
+        tenant.require_role(WorkspaceRole.MEMBER)
+
+        session = self._upload_session_repo.get_by_id(
+            session_id=upload_session_id,
+            workspace_id=tenant.workspace_id,
+        )
+        if session is None:
+            raise UploadSessionNotFoundError(
+                "La sesión de carga solicitada no existe o no tiene acceso a ella."
+            )
+
+        if session.status == UploadSessionStatus.COMPLETED:
+            raise ConflictError(
+                "No se puede cancelar una sesión de carga que ya ha sido completada."
+            )
+
+        if session.status == UploadSessionStatus.CANCELLED:
+            return  # Idempotente
+
+        # 1. Marcar sesión cancelada
+        cancelled_session = session.mark_cancelled()
+        self._upload_session_repo.save(cancelled_session)
+
+        # 2. Transicionar documento provisional si está en PENDING_UPLOAD
+        doc = self._document_repo.get_by_id(
+            workspace_id=tenant.workspace_id,
+            document_id=session.document_id,
+            include_deleted=True,
+        )
+        if doc and doc.status == DocumentStatus.PENDING_UPLOAD:
+            updated_doc = doc.transition_to(DocumentStatus.FAILED)
+            self._document_repo.save(updated_doc)
+
+        # 3. Limpiar cualquier binario huérfano en S3 si existiera
+        self._storage.delete_object(session.storage_key)
+
+        logger.info(
+            "Cancelled upload session id=%s for tenant=%s user=%s",
+            session.id,
+            tenant.workspace_id,
+            tenant.user_id,
+        )
+
+
+@dataclass(frozen=True)
+class CleanupReportDTO:
+    """Informe del proceso de limpieza de sesiones expiradas y objetos huérfanos."""
+
+    expired_sessions_count: int
+    cleaned_objects_count: int
+    skipped_confirmed_documents_count: int
+
+
+class CleanupExpiredUploadSessionsUseCase:
+    """Caso de uso: Expirar sesiones vencidas y limpiar objetos huérfanos sin confirmar (CDM-34).
+
+    Criterios garantizados:
+    1. Upload sessions vencidas se marcan EXPIRED.
+    2. Objetos temporales sin confirmación se eliminan del almacenamiento.
+    3. La limpieza NUNCA borra documentos CONFIRMED (UPLOADED, PROCESSING, READY).
+    """
+
+    def __init__(
+        self,
+        upload_session_repo: UploadSessionRepositoryPort,
+        document_repo: DocumentRepositoryPort,
+        storage: StoragePort,
+    ) -> None:
+        self._upload_session_repo = upload_session_repo
+        self._document_repo = document_repo
+        self._storage = storage
+
+    def execute(self, workspace_id: UUID | None = None) -> CleanupReportDTO:
+        expired_sessions = self._upload_session_repo.list_expired(workspace_id=workspace_id)
+
+        expired_count = 0
+        cleaned_objects_count = 0
+        skipped_confirmed_count = 0
+
+        for session in expired_sessions:
+            doc = self._document_repo.get_by_id(
+                workspace_id=session.workspace_id,
+                document_id=session.document_id,
+                include_deleted=True,
+            )
+
+            # Criterio 3: NUNCA borrar documentos confirmados/válidos
+            if doc is not None and doc.status in (
+                DocumentStatus.UPLOADED,
+                DocumentStatus.PROCESSING,
+                DocumentStatus.READY,
+            ):
+                # Si el documento ya fue confirmado o procesado válidamente,
+                # marcamos la sesión como completada y nunca tocamos el binario ni el documento.
+                if session.status == UploadSessionStatus.PENDING:
+                    session_completed = session.mark_completed()
+                    self._upload_session_repo.save(session_completed)
+                skipped_confirmed_count += 1
+                continue
+
+            # 1. Marcar sesión como EXPIRED
+            expired_session = session.mark_expired()
+            self._upload_session_repo.save(expired_session)
+            expired_count += 1
+
+            # 2. Si el documento sigue en PENDING_UPLOAD, marcarlo como FAILED
+            if doc is not None and doc.status == DocumentStatus.PENDING_UPLOAD:
+                failed_doc = doc.transition_to(DocumentStatus.FAILED)
+                self._document_repo.save(failed_doc)
+
+            # 3. Eliminar objeto temporal huérfano de S3 si existiera
+            deleted = self._storage.delete_object(session.storage_key)
+            if deleted:
+                cleaned_objects_count += 1
+
+            logger.info(
+                "Cleaned expired upload session id=%s doc_id=%s tenant=%s",
+                session.id,
+                session.document_id,
+                session.workspace_id,
+            )
+
+        return CleanupReportDTO(
+            expired_sessions_count=expired_count,
+            cleaned_objects_count=cleaned_objects_count,
+            skipped_confirmed_documents_count=skipped_confirmed_count,
         )

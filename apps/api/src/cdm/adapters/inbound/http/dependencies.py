@@ -35,6 +35,8 @@ from cdm.application.use_cases.documents import (
     ListDocumentsUseCase,
 )
 from cdm.application.use_cases.upload_sessions import (
+    CancelUploadSessionUseCase,
+    CleanupExpiredUploadSessionsUseCase,
     CreateUploadSessionUseCase,
 )
 from cdm.application.use_cases.workspaces import (
@@ -239,5 +241,27 @@ def get_complete_document_upload_use_case(
     return CompleteDocumentUploadUseCase(
         document_repo=SqlAlchemyDocumentRepository(session),
         upload_session_repo=SqlAlchemyUploadSessionRepository(session),
+        storage=storage,
+    )
+
+
+def get_cancel_upload_session_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StoragePort, Depends(get_storage_port)],
+) -> CancelUploadSessionUseCase:
+    return CancelUploadSessionUseCase(
+        upload_session_repo=SqlAlchemyUploadSessionRepository(session),
+        document_repo=SqlAlchemyDocumentRepository(session),
+        storage=storage,
+    )
+
+
+def get_cleanup_expired_upload_sessions_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StoragePort, Depends(get_storage_port)],
+) -> CleanupExpiredUploadSessionsUseCase:
+    return CleanupExpiredUploadSessionsUseCase(
+        upload_session_repo=SqlAlchemyUploadSessionRepository(session),
+        document_repo=SqlAlchemyDocumentRepository(session),
         storage=storage,
     )

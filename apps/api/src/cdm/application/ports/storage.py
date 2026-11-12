@@ -67,3 +67,10 @@ class StoragePort(Protocol):
         Retorna None si el objeto no existe en el bucket.
         """
         ...
+
+    def delete_object(self, storage_key: str) -> bool:
+        """Elimina físicamente un objeto de S3 si existe (limpieza CDM-34).
+
+        Retorna True si la eliminación fue solicitada/ejecutada con éxito.
+        """
+        ...
