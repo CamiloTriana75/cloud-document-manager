@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
+from cdm.domain.document import Document, DocumentStatus
 from cdm.domain.workspace import (
     MembershipStatus,
     User,
@@ -116,6 +118,9 @@ class WorkspaceModel(Base):
     memberships: Mapped[list[WorkspaceMembershipModel]] = relationship(
         "WorkspaceMembershipModel", back_populates="workspace", cascade="all, delete-orphan"
     )
+    documents: Mapped[list[DocumentModel]] = relationship(
+        "DocumentModel", back_populates="workspace", cascade="all, delete-orphan"
+    )
 
     def to_domain(self) -> Workspace:
         """Convierte este registro ORM a la entidad pura de dominio."""
@@ -199,4 +204,82 @@ class WorkspaceMembershipModel(Base):
             status=membership.status.value,
             created_at=membership.created_at,
             updated_at=membership.updated_at,
+        )
+
+
+class DocumentModel(Base):
+    """Modelo ORM para la tabla documents (CDM-27 / AGENTS.md §10)."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    uploaded_by: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(512), unique=True, nullable=False, index=True)
+    content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="PENDING_UPLOAD")
+    technical_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    deleted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
+    )
+
+    workspace: Mapped[WorkspaceModel] = relationship("WorkspaceModel", back_populates="documents")
+
+    def to_domain(self) -> Document:
+        """Convierte este registro ORM a la entidad de dominio."""
+        return Document(
+            id=self.id,
+            workspace_id=self.workspace_id,
+            uploaded_by=self.uploaded_by,
+            original_filename=self.original_filename,
+            storage_key=self.storage_key,
+            content_type=self.content_type,
+            size_bytes=self.size_bytes,
+            checksum_sha256=self.checksum_sha256,
+            status=DocumentStatus(self.status),
+            technical_metadata=dict(self.technical_metadata) if self.technical_metadata else {},
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+            deleted_at=self.deleted_at,
+        )
+
+    @classmethod
+    def from_domain(cls, doc: Document) -> DocumentModel:
+        """Crea una instancia ORM a partir de la entidad pura de dominio."""
+        return cls(
+            id=doc.id,
+            workspace_id=doc.workspace_id,
+            uploaded_by=doc.uploaded_by,
+            original_filename=doc.original_filename,
+            storage_key=doc.storage_key,
+            content_type=doc.content_type,
+            size_bytes=doc.size_bytes,
+            checksum_sha256=doc.checksum_sha256,
+            status=doc.status.value,
+            technical_metadata=doc.technical_metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+            deleted_at=doc.deleted_at,
         )
