@@ -1,0 +1,97 @@
+# CI de calidad (CDM-22): backend Python + frontend Angular.
+# CD (despliegue) se configura aparte y solo con autorización explícita (AGENTS.md §16).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend — ruff, mypy, pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cdm
+          POSTGRES_PASSWORD: cdm
+          POSTGRES_DB: cdm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cdm -d cdm"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      CDM_DATABASE_URL: postgresql+psycopg://cdm:cdm@localhost:5432/cdm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Instalar uv y Python (versiones fijadas)
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          version: "0.12.18"
+          python-version: "3.12.12"
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+          working-directory: apps/api
+
+      - name: Dependencias fijadas en uv.lock
+        run: uv sync --frozen
+
+      - name: Lint y formato (ruff)
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type-check (mypy strict)
+        run: uv run mypy
+
+      - name: Migraciones (Alembic contra PostgreSQL real)
+        run: uv run alembic upgrade head
+
+      - name: Pruebas (pytest: unit, contract, integration)
+        run: uv run pytest
+
+  web:
+    name: Frontend — build y pruebas Angular
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      CI: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Instalar pnpm (versión fijada)
+        uses: pnpm/action-setup@v4
+        with:
+          version: 12.14.0
+
+      - name: Node.js (versión fijada)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Dependencias fijadas en pnpm-lock.yaml
+        run: pnpm install --frozen-lockfile
+
+      - name: Build de producción
+        run: pnpm exec ng build
+
+      - name: Pruebas (vitest, una sola pasada)
+        run: pnpm exec ng test --no-watch

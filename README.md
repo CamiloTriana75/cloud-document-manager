@@ -55,6 +55,17 @@ uv run uvicorn cdm.bootstrap.app:app --reload   # http://localhost:8000/health
 uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 
+Frontend:
+
+```bash
+cd apps/web
+pnpm install --frozen-lockfile
+pnpm exec ng build
+pnpm exec ng test --no-watch
+```
+
+Los mismos checks corren en CI (`.github/workflows/ci.yml`) en cada pull request y en push a `main`/`develop`: ruff + mypy + pytest (con PostgreSQL 16 como service container y migraciones Alembic) para el backend, build + vitest para el frontend. El pipeline falla si cualquier comprobación falla. Versiones fijadas: Python 3.12.12, uv 0.12.18, Node 24.21.0, pnpm 12.14.0, PostgreSQL 16.
+
 ## Reglas rápidas para colaboradores (y agentes)
 
 1. Leer `AGENTS.md` completo antes de proponer cambios.
