@@ -39,3 +39,23 @@ output "rds_secret_arn" {
   description = "ARN del secreto de credenciales de RDS (null si enable_rds = false)."
   value       = module.rds_postgres.secret_arn
 }
+
+output "frontend_bucket_name" {
+  description = "Nombre del bucket S3 de hosting de la SPA Angular."
+  value       = module.frontend_hosting.bucket_name
+}
+
+output "cloudfront_distribution_id" {
+  description = "ID de la distribución CloudFront del frontend."
+  value       = module.frontend_hosting.cloudfront_distribution_id
+}
+
+output "cloudfront_domain_name" {
+  description = "Dominio público CloudFront de la aplicación Angular."
+  value       = module.frontend_hosting.cloudfront_domain_name
+}
+
+output "frontend_url" {
+  description = "URL HTTPS pública de la SPA Angular."
+  value       = module.frontend_hosting.cloudfront_url
+}
