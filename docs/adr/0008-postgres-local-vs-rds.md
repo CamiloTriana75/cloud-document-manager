@@ -1,6 +1,6 @@
 # ADR-0008: PostgreSQL local (Docker) para el MVP; RDS diferido
 
-**Estado:** Propuesta — pendiente aprobación del propietario
+**Estado:** Aceptado (propietario, 2026-11-12)
 **Fecha:** 2026-11-12 · **Jira:** CDM-17 (épica CDM-3)
 
 ## Contexto
