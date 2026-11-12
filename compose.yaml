@@ -1,0 +1,24 @@
+# CDM — servicios locales de desarrollo.
+# Solo PostgreSQL. La API corre nativa: uv run uvicorn cdm.bootstrap.app:app --reload
+# Uso: docker compose up -d   |   docker compose down -v  (borra datos)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cdm-postgres
+    environment:
+      POSTGRES_USER: cdm
+      POSTGRES_PASSWORD: cdm
+      POSTGRES_DB: cdm
+    ports:
+      - "5432:5432"
+    volumes:
+      - cdm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cdm -d cdm"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  cdm_pgdata:

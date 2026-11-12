@@ -1,1 +1,1 @@
-"""Adaptadores de salida de CDM: repositorios, S3, JWKS, colas."""
+"""Adaptadores de salida: persistencia, storage, JWKS, colas."""

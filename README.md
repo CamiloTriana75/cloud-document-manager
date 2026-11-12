@@ -41,10 +41,18 @@ docs/           # producto, arquitectura, ADRs, desarrollo
 
 ## Desarrollo local
 
-En construcción — se completará con el esqueleto backend (CDM-13), Angular (CDM-14) y Docker Compose (CDM-15).
+Solo PostgreSQL corre en Docker; la API corre nativa con hot reload:
 
 ```bash
-cp .env.example .env   # rellenar valores locales; .env nunca se commitea
+cp .env.example .env            # rellenar valores locales; .env nunca se commitea
+docker compose up -d            # PostgreSQL 16 en localhost:5432
+
+cd apps/api
+uv sync                         # entorno virtual + dependencias fijadas en uv.lock
+uv run alembic upgrade head     # ciclo de migraciones
+uv run uvicorn cdm.bootstrap.app:app --reload   # http://localhost:8000/health
+
+uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest
 ```
 
 ## Reglas rápidas para colaboradores (y agentes)

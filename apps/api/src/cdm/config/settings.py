@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="CDM_", env_file=".env", extra="ignore")
 
     env: str = "dev"
-    database_url: str = "postgresql://cdm:cdm@localhost:5432/cdm"
+    database_url: str = "postgresql+psycopg://cdm:cdm@localhost:5432/cdm"
     cors_origins: str = "http://localhost:4200"
     log_level: str = "INFO"
 
