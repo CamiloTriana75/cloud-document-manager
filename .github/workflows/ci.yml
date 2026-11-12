@@ -93,5 +93,8 @@ jobs:
       - name: Build de producción
         run: pnpm exec ng build
 
+      - name: Lint (angular-eslint)
+        run: pnpm exec ng lint
+
       - name: Pruebas (vitest, una sola pasada)
         run: pnpm exec ng test --no-watch

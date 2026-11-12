@@ -61,6 +61,7 @@ Frontend:
 cd apps/web
 pnpm install --frozen-lockfile
 pnpm exec ng build
+pnpm exec ng lint
 pnpm exec ng test --no-watch
 ```
 
