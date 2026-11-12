@@ -44,5 +44,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
     title: 'Miembros del espacio — CDM',
   },
+  {
+    path: 'workspaces/:id/upload',
+    loadComponent: () =>
+      import('./pages/documents/upload/upload').then(
+        (m) => m.DocumentUploadComponent
+      ),
+    canActivate: [authGuard],
+    title: 'Cargar documento — CDM',
+  },
   { path: '**', redirectTo: '' },
 ];
