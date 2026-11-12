@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     cognito_user_pool_id: str = ""
     cognito_client_id: str = ""
     cognito_region: str = "us-east-1"
+    s3_bucket_name: str = "cdm-documents-dev"
+    s3_region: str = "us-east-1"
 
     @property
     def cors_origin_list(self) -> list[str]:

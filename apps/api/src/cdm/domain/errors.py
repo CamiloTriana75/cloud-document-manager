@@ -72,6 +72,18 @@ class WorkspaceNotFoundError(NotFoundError):
     code = "workspace_not_found"
 
 
+class DocumentNotFoundError(NotFoundError):
+    """Documento inexistente o perteneciente a otro workspace."""
+
+    code = "document_not_found"
+
+
+class InvalidDocumentDataError(DomainError):
+    """Datos o estado del documento inválidos."""
+
+    code = "invalid_document_data"
+
+
 class WorkspaceSlugAlreadyExistsError(ConflictError):
     """El slug de workspace ya está en uso."""
 

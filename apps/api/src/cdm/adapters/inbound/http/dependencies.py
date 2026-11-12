@@ -1,4 +1,4 @@
-"""Dependencias de FastAPI para inyección de persistencia y casos de uso (CDM-26).
+"""Dependencias de FastAPI: persistencia, contexto de tenant y casos de uso (CDM-26/27).
 
 Permite composición desacoplada y override trivial en pruebas unitarias e integración.
 """
@@ -8,15 +8,27 @@ from __future__ import annotations
 from collections.abc import Iterator
 from functools import lru_cache
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Path
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from cdm.adapters.inbound.http.auth import get_current_user
 from cdm.adapters.outbound.persistence.repositories import (
+    SqlAlchemyDocumentRepository,
     SqlAlchemyMembershipRepository,
     SqlAlchemyUserRepository,
     SqlAlchemyWorkspaceRepository,
+)
+from cdm.adapters.outbound.storage.s3_storage import S3StorageAdapter
+from cdm.application.ports.storage import StoragePort
+from cdm.application.use_cases.documents import (
+    AuthorizeDocumentDownloadUseCase,
+    CreateDocumentRecordUseCase,
+    DeleteDocumentUseCase,
+    GetDocumentDetailUseCase,
+    ListDocumentsUseCase,
 )
 from cdm.application.use_cases.workspaces import (
     AddWorkspaceMemberUseCase,
@@ -25,6 +37,10 @@ from cdm.application.use_cases.workspaces import (
     ListWorkspaceMembersUseCase,
 )
 from cdm.config.settings import Settings, load_settings
+from cdm.domain.errors import WorkspaceNotFoundError
+from cdm.domain.identity import AuthenticatedUser
+from cdm.domain.tenant import TenantContext
+from cdm.domain.workspace import MembershipStatus
 
 
 @lru_cache
@@ -59,10 +75,60 @@ def get_db_session(
         session.close()
 
 
+def get_tenant_context(
+    workspace_id: Annotated[UUID, Path(description="Identificador único del workspace")],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+    session: Annotated[Session, Depends(get_db_session)],
+) -> TenantContext:
+    """Resuelve y verifica la pertenencia del usuario al workspace.
+
+    CRITICAL RULE (CDM-27 / AGENTS.md §3.1):
+    tenant_id se obtiene de una membresía verificada en base de datos.
+    Si el usuario no es miembro activo del workspace especificado, se lanza
+    WorkspaceNotFoundError (404), impidiendo la divulgación de recursos o existencia (anti-IDOR).
+    """
+    user_repo = SqlAlchemyUserRepository(session)
+    membership_repo = SqlAlchemyMembershipRepository(session)
+
+    user = user_repo.get_by_cognito_sub(current_user.cognito_sub)
+    if user is None:
+        raise WorkspaceNotFoundError(
+            "El espacio de trabajo solicitado no existe o no tiene acceso a él."
+        )
+
+    membership = membership_repo.get_by_workspace_and_user(
+        workspace_id=workspace_id, user_id=user.id
+    )
+    if membership is None or membership.status != MembershipStatus.ACTIVE:
+        raise WorkspaceNotFoundError(
+            "El espacio de trabajo solicitado no existe o no tiene acceso a él."
+        )
+
+    return TenantContext(
+        workspace_id=workspace_id,
+        user_id=user.id,
+        user_email=user.email,
+        role=membership.role,
+        status=membership.status,
+    )
+
+
+def get_storage_port(
+    settings: Annotated[Settings, Depends(load_settings)],
+) -> StoragePort:
+    """Fábrica para el adaptador de almacenamiento S3."""
+    return S3StorageAdapter(
+        bucket_name=settings.s3_bucket_name,
+        region=settings.s3_region,
+    )
+
+
+# --- Fábricas de Casos de Uso: Workspaces ---
+
+
 def get_create_workspace_use_case(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> CreateWorkspaceUseCase:
-    """Fábrica de dependencias para CreateWorkspaceUseCase."""
     return CreateWorkspaceUseCase(
         workspace_repo=SqlAlchemyWorkspaceRepository(session),
         membership_repo=SqlAlchemyMembershipRepository(session),
@@ -73,7 +139,6 @@ def get_create_workspace_use_case(
 def get_list_user_workspaces_use_case(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> ListUserWorkspacesUseCase:
-    """Fábrica de dependencias para ListUserWorkspacesUseCase."""
     return ListUserWorkspacesUseCase(
         workspace_repo=SqlAlchemyWorkspaceRepository(session),
         membership_repo=SqlAlchemyMembershipRepository(session),
@@ -84,7 +149,6 @@ def get_list_user_workspaces_use_case(
 def get_list_workspace_members_use_case(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> ListWorkspaceMembersUseCase:
-    """Fábrica de dependencias para ListWorkspaceMembersUseCase."""
     return ListWorkspaceMembersUseCase(
         workspace_repo=SqlAlchemyWorkspaceRepository(session),
         membership_repo=SqlAlchemyMembershipRepository(session),
@@ -95,9 +159,53 @@ def get_list_workspace_members_use_case(
 def get_add_workspace_member_use_case(
     session: Annotated[Session, Depends(get_db_session)],
 ) -> AddWorkspaceMemberUseCase:
-    """Fábrica de dependencias para AddWorkspaceMemberUseCase."""
     return AddWorkspaceMemberUseCase(
         workspace_repo=SqlAlchemyWorkspaceRepository(session),
         membership_repo=SqlAlchemyMembershipRepository(session),
         user_repo=SqlAlchemyUserRepository(session),
+    )
+
+
+# --- Fábricas de Casos de Uso: Documentos ---
+
+
+def get_list_documents_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> ListDocumentsUseCase:
+    return ListDocumentsUseCase(
+        document_repo=SqlAlchemyDocumentRepository(session),
+    )
+
+
+def get_document_detail_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> GetDocumentDetailUseCase:
+    return GetDocumentDetailUseCase(
+        document_repo=SqlAlchemyDocumentRepository(session),
+    )
+
+
+def get_authorize_document_download_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StoragePort, Depends(get_storage_port)],
+) -> AuthorizeDocumentDownloadUseCase:
+    return AuthorizeDocumentDownloadUseCase(
+        document_repo=SqlAlchemyDocumentRepository(session),
+        storage_service=storage,
+    )
+
+
+def get_delete_document_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> DeleteDocumentUseCase:
+    return DeleteDocumentUseCase(
+        document_repo=SqlAlchemyDocumentRepository(session),
+    )
+
+
+def get_create_document_record_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> CreateDocumentRecordUseCase:
+    return CreateDocumentRecordUseCase(
+        document_repo=SqlAlchemyDocumentRepository(session),
     )
