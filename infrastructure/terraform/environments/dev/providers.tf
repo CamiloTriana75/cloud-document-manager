@@ -7,10 +7,14 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.4"
+    }
   }
 
-  # Estado local durante el MVP. Al crear el bucket de estado (CDM-19+) se
-  # añadirá backend "s3" con locking (ver README); nunca commitear *.tfstate*.
+  # Estado local durante el MVP. Al crear el bucket de estado se añadirá
+  # backend "s3" con locking (ver README); nunca commitear *.tfstate*.
 }
 
 provider "aws" {
