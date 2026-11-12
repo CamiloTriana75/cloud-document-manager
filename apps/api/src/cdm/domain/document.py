@@ -26,6 +26,30 @@ class DocumentStatus(str, Enum):
     DELETED = "DELETED"
 
 
+#: Transiciones retrógradas prohibidas para prevenir inconsistencia por reintentos (AGENTS.md §10).
+_FORBIDDEN_BACKWARD_TRANSITIONS: dict[DocumentStatus, set[DocumentStatus]] = {
+    DocumentStatus.READY: {
+        DocumentStatus.PENDING_UPLOAD,
+        DocumentStatus.UPLOADED,
+        DocumentStatus.PROCESSING,
+    },
+    DocumentStatus.PROCESSING: {
+        DocumentStatus.PENDING_UPLOAD,
+        DocumentStatus.UPLOADED,
+    },
+    DocumentStatus.UPLOADED: {
+        DocumentStatus.PENDING_UPLOAD,
+    },
+    DocumentStatus.DELETED: {
+        DocumentStatus.PENDING_UPLOAD,
+        DocumentStatus.UPLOADED,
+        DocumentStatus.PROCESSING,
+        DocumentStatus.READY,
+        DocumentStatus.FAILED,
+    },
+}
+
+
 @dataclass(frozen=True)
 class Document:
     """Entidad pura de dominio para un documento en el sistema."""
@@ -115,9 +139,19 @@ class Document:
         )
 
     def transition_to(self, new_status: DocumentStatus) -> Document:
-        """Realiza una transición de estado validada."""
+        """Realiza una transición de estado validada según el ciclo de vida (AGENTS.md §10)."""
         if self.is_deleted:
             raise InvalidDocumentDataError("No se puede transicionar un documento eliminado.")
+
+        if new_status == self.status:
+            # Idempotente: misma transición no genera error
+            return self
+
+        forbidden = _FORBIDDEN_BACKWARD_TRANSITIONS.get(self.status, set())
+        if new_status in forbidden:
+            raise InvalidDocumentDataError(
+                f"Transición no válida: de '{self.status.value}' a '{new_status.value}'."
+            )
 
         now = datetime.now(UTC)
         return Document(

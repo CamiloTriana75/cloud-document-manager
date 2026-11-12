@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from cdm.adapters.inbound.http.dependencies import (
     get_authorize_document_download_use_case,
+    get_complete_document_upload_use_case,
     get_create_document_record_use_case,
     get_delete_document_use_case,
     get_document_detail_use_case,
@@ -25,6 +26,7 @@ from cdm.adapters.inbound.http.errors import ERROR_RESPONSES
 from cdm.adapters.inbound.http.pagination import PaginationMeta, PaginationParams
 from cdm.application.use_cases.documents import (
     AuthorizeDocumentDownloadUseCase,
+    CompleteDocumentUploadUseCase,
     CreateDocumentRecordUseCase,
     DeleteDocumentUseCase,
     GetDocumentDetailUseCase,
@@ -296,3 +298,40 @@ def delete_document(
 ) -> EnvelopeDelete:
     use_case.execute(tenant=tenant, document_id=document_id)
     return EnvelopeDelete(data={"message": "Documento eliminado lógicamente de forma exitosa."})
+
+
+@router.post(
+    "/{document_id}/complete",
+    response_model=EnvelopeDocument,
+    summary="Confirmar carga y reconciliar objeto S3",
+    description=(
+        "Confirma la subida directa a S3, reconciliando presencia física y metadatos. "
+        "Transiciona el estado de PENDING_UPLOAD a UPLOADED de forma atómica e idempotente. "
+        "Requiere rol MEMBER o superior."
+    ),
+    responses=ERROR_RESPONSES,
+)
+def complete_document_upload(
+    document_id: Annotated[UUID, Path(description="Identificador del documento a confirmar")],
+    tenant: Annotated[TenantContext, Depends(get_tenant_context)],
+    use_case: Annotated[
+        CompleteDocumentUploadUseCase, Depends(get_complete_document_upload_use_case)
+    ],
+) -> EnvelopeDocument:
+    doc = use_case.execute(tenant=tenant, document_id=document_id)
+    return EnvelopeDocument(
+        data=DocumentResponse(
+            id=doc.id,
+            workspace_id=doc.workspace_id,
+            uploaded_by=doc.uploaded_by,
+            original_filename=doc.original_filename,
+            storage_key=doc.storage_key,
+            content_type=doc.content_type,
+            size_bytes=doc.size_bytes,
+            checksum_sha256=doc.checksum_sha256,
+            status=doc.status,
+            technical_metadata=doc.technical_metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+    )

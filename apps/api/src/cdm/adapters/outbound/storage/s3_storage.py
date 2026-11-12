@@ -11,7 +11,7 @@ import time
 from typing import Any
 from urllib.parse import quote
 
-from cdm.application.ports.storage import StoragePort
+from cdm.application.ports.storage import ObjectMetadata, StoragePort
 
 
 class S3StorageAdapter(StoragePort):
@@ -26,6 +26,7 @@ class S3StorageAdapter(StoragePort):
         self._bucket_name = bucket_name
         self._region = region
         self._endpoint_url = endpoint_url
+        self._mock_objects: dict[str, ObjectMetadata] = {}
 
     def _get_s3_client(self) -> Any:
         import boto3  # type: ignore[import-not-found]
@@ -114,3 +115,43 @@ class S3StorageAdapter(StoragePort):
                 f"https://{self._bucket_name}.s3.{self._region}.amazonaws.com/"
                 f"{encoded_key}?action=put&expires={timestamp}&signature={signature}"
             )
+
+    def get_object_metadata(self, storage_key: str) -> ObjectMetadata | None:
+        """Obtiene metadatos de un objeto en S3 (HeadObject / reconciliación CDM-32).
+
+        Retorna None si el objeto no existe en el bucket.
+        """
+        try:
+            s3_client = self._get_s3_client()
+            response = s3_client.head_object(
+                Bucket=self._bucket_name,
+                Key=storage_key,
+            )
+            return ObjectMetadata(
+                storage_key=storage_key,
+                size_bytes=int(response["ContentLength"]),
+                content_type=response.get("ContentType"),
+                etag=response.get("ETag", "").strip('"'),
+            )
+        except Exception as exc:
+            # Si es ClientError 404 de AWS, el objeto no existe en S3
+            err_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            if err_code in ("404", "NoSuchKey", "NotFound"):
+                return None
+            # Fallback en desarrollo local sin credenciales de AWS
+            return self._mock_objects.get(storage_key)
+
+    def register_mock_object(
+        self,
+        storage_key: str,
+        size_bytes: int,
+        content_type: str | None = None,
+        etag: str | None = None,
+    ) -> None:
+        """Registra un objeto en el almacén simulado para desarrollo local y pruebas."""
+        self._mock_objects[storage_key] = ObjectMetadata(
+            storage_key=storage_key,
+            size_bytes=size_bytes,
+            content_type=content_type,
+            etag=etag or "mock-etag",
+        )
