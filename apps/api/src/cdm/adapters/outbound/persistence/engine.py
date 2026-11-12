@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from cdm.config.settings import Settings
 
 
-def create_db_engine(settings: Settings) -> Engine:
+def create_db_engine(settings: Settings, **kwargs: object) -> Engine:
     """Engine con pool razonable para API en Lambda (conexiones efímeras)."""
     return create_engine(
         settings.database_url,
@@ -21,6 +21,7 @@ def create_db_engine(settings: Settings) -> Engine:
         pool_size=5,
         max_overflow=5,
         pool_recycle=300,
+        **kwargs,
     )
 
 

@@ -29,3 +29,13 @@ output "lambda_api_function_arn" {
   description = "ARN de la función Lambda de la API."
   value       = module.lambda_api.function_arn
 }
+
+output "rds_endpoint" {
+  description = "Endpoint de conexión de RDS PostgreSQL (null si enable_rds = false)."
+  value       = module.rds_postgres.db_endpoint
+}
+
+output "rds_secret_arn" {
+  description = "ARN del secreto de credenciales de RDS (null si enable_rds = false)."
+  value       = module.rds_postgres.secret_arn
+}

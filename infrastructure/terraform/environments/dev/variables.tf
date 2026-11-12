@@ -63,6 +63,12 @@ variable "lambda_memory_mb" {
   }
 }
 
+variable "enable_rds" {
+  description = "Flag de seguridad para aprovisionar RDS. Por defecto false para evitar consumo de créditos (ADR-0008)."
+  type        = bool
+  default     = false
+}
+
 variable "common_tags" {
   description = "Etiquetas adicionales aplicables a todos los recursos."
   type        = map(string)
