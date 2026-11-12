@@ -1,0 +1,234 @@
+<section class="members-page" aria-labelledby="members-page-title">
+  <div class="page-container">
+    <header class="page-header">
+      <nav class="breadcrumb" aria-label="Ruta de navegación">
+        <a routerLink="/" class="breadcrumb-link">Inicio</a>
+        <span class="breadcrumb-separator" aria-hidden="true">/</span>
+        <span class="breadcrumb-current">Miembros y roles</span>
+      </nav>
+
+      <div class="header-content">
+        <div>
+          <h1 id="members-page-title" class="title">
+            Miembros de {{ workspaceService.activeWorkspace()?.name || 'Espacio de trabajo' }}
+          </h1>
+          <p class="subtitle">
+            Administra los integrantes de este espacio y sus roles documentales (ADR-0001).
+          </p>
+        </div>
+        @if (workspaceService.activeWorkspace()?.role; as role) {
+          <div class="user-role-badge">
+            <span class="role-caption">Tu rol:</span>
+            <span class="role-badge role-{{ role | lowercase }}">{{ role }}</span>
+          </div>
+        }
+      </div>
+    </header>
+
+    @if (workspaceService.canManageMembers()) {
+      <div class="card invite-card">
+        <h2 class="card-title">Invitar a un nuevo miembro</h2>
+        <p class="card-subtitle">
+          Agrega colaboradores a este espacio de trabajo con permisos controlados.
+        </p>
+
+        @if (inviteSuccess()) {
+          <div class="alert alert-success" role="status" aria-live="polite">
+            <svg
+              class="alert-icon"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+            <span>{{ inviteSuccess() }}</span>
+          </div>
+        }
+
+        @if (inviteError()) {
+          <div class="alert alert-error" role="alert" aria-live="polite">
+            <svg
+              class="alert-icon"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span>{{ inviteError() }}</span>
+          </div>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="onInvite()" class="invite-form" novalidate>
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="member-email" class="form-label">
+                Correo electrónico <span class="required" aria-hidden="true">*</span>
+              </label>
+              <input
+                id="member-email"
+                type="email"
+                formControlName="email"
+                class="form-control"
+                [class.is-invalid]="form.controls.email.invalid && form.controls.email.touched"
+                placeholder="colaborador@ejemplo.com"
+                autocomplete="email"
+                [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
+              />
+              @if (form.controls.email.invalid && form.controls.email.touched) {
+                <div class="field-error" role="alert">
+                  <span>Introduce un correo electrónico válido.</span>
+                </div>
+              }
+            </div>
+
+            <div class="form-group role-group">
+              <label for="member-role" class="form-label">
+                Rol en el espacio <span class="required" aria-hidden="true">*</span>
+              </label>
+              <select
+                id="member-role"
+                formControlName="role"
+                class="form-control select-control"
+              >
+                @for (role of availableRoles(); track role) {
+                  <option [value]="role">{{ role }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="form-group submit-group">
+              <span class="submit-spacer" aria-hidden="true"></span>
+              <button
+                type="submit"
+                class="btn btn-primary btn-invite"
+                [disabled]="isSubmitting() || form.invalid"
+              >
+                @if (isSubmitting()) {
+                  <span class="spinner" aria-hidden="true"></span>
+                  <span>Agregando...</span>
+                } @else {
+                  <span>Agregar miembro</span>
+                }
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    }
+
+    <!-- Listado de miembros -->
+    <div class="card table-card">
+      <div class="card-header-row">
+        <h2 class="card-title">Miembros actuales ({{ workspaceService.members().length }})</h2>
+        <button
+          type="button"
+          class="btn-refresh"
+          (click)="loadMembers()"
+          aria-label="Actualizar listado de miembros"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            <path d="M3 21v-5h5" />
+          </svg>
+          <span>Actualizar</span>
+        </button>
+      </div>
+
+      @if (workspaceService.isLoading() && workspaceService.members().length === 0) {
+        <div class="loading-skeleton" aria-label="Cargando miembros..." aria-busy="true">
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+          <div class="skeleton-row"></div>
+        </div>
+      } @else if (workspaceService.error()) {
+        <div class="alert alert-error" role="alert">
+          <span>{{ workspaceService.error() }}</span>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="loadMembers()">
+            Reintentar
+          </button>
+        </div>
+      } @else if (workspaceService.members().length === 0) {
+        <div class="empty-state">
+          <p>No se encontraron miembros en este espacio de trabajo.</p>
+        </div>
+      } @else {
+        <div class="table-responsive">
+          <table class="members-table">
+            <caption class="sr-only">
+              Listado de integrantes del espacio de trabajo con sus respectivos roles y estados
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Usuario</th>
+                <th scope="col">Rol</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Fecha de registro</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (member of workspaceService.members(); track member.membership_id) {
+                <tr>
+                  <td>
+                    <div class="user-cell">
+                      <div class="avatar-placeholder" aria-hidden="true">
+                        {{ member.email.charAt(0).toUpperCase() }}
+                      </div>
+                      <div class="user-names">
+                        <span class="user-email">{{ member.email }}</span>
+                        @if (member.display_name) {
+                          <span class="user-display-name">{{ member.display_name }}</span>
+                        }
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="role-badge role-{{ member.role | lowercase }}">
+                      {{ member.role }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="status-pill status-{{ member.status | lowercase }}">
+                      {{ member.status === 'ACTIVE' ? 'Activo' : member.status }}
+                    </span>
+                  </td>
+                  <td class="date-cell">
+                    {{ member.created_at | date: 'mediumDate' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+</section>

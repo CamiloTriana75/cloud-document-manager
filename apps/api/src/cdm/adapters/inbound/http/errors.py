@@ -4,6 +4,8 @@
 expone stack traces ni estructura interna.
 """
 
+from typing import Any
+
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -20,7 +22,7 @@ from cdm.domain.errors import (
     UnauthenticatedError,
 )
 
-_ERROR_ENVELOPE_DEFINITION: dict[str, object] = {
+_ERROR_ENVELOPE_DEFINITION: dict[str, Any] = {
     "description": "Envelope estándar de error",
     "content": {
         "application/json": {
@@ -36,7 +38,7 @@ _ERROR_ENVELOPE_DEFINITION: dict[str, object] = {
 }
 
 #: Respuestas de error reutilizables en la declaracion de routers.
-ERROR_RESPONSES: dict[int | str, object] = {
+ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: _ERROR_ENVELOPE_DEFINITION,
     403: _ERROR_ENVELOPE_DEFINITION,
     404: _ERROR_ENVELOPE_DEFINITION,

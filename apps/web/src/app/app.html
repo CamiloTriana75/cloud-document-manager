@@ -21,6 +21,7 @@
   <nav class="nav-actions" aria-label="Navegación de usuario">
     @if (authService.isAuthenticated()) {
       <div class="user-menu">
+        <app-workspace-selector />
         <span class="user-badge" [title]="authService.currentUser()?.email">
           {{ authService.currentUser()?.name || authService.currentUser()?.email }}
         </span>

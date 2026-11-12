@@ -66,6 +66,30 @@ class ConflictError(DomainError):
     code = "conflict"
 
 
+class WorkspaceNotFoundError(NotFoundError):
+    """Workspace inexistente o inaccesible para el usuario actual."""
+
+    code = "workspace_not_found"
+
+
+class WorkspaceSlugAlreadyExistsError(ConflictError):
+    """El slug de workspace ya está en uso."""
+
+    code = "workspace_slug_exists"
+
+
+class UserAlreadyMemberError(ConflictError):
+    """El usuario ya es miembro de este workspace."""
+
+    code = "user_already_member"
+
+
+class InvalidWorkspaceDataError(DomainError):
+    """Datos de workspace o membresía inválidos según las reglas de negocio."""
+
+    code = "invalid_workspace_data"
+
+
 class FilePolicyViolationError(DomainError):
     """Formato no permitido o tamaño excedido según la política de archivos."""
 

@@ -4,10 +4,11 @@ from alembic import context
 from sqlalchemy import Engine
 
 from cdm.adapters.outbound.persistence.engine import create_db_engine
+from cdm.adapters.outbound.persistence.models import Base
 from cdm.config.settings import load_settings
 
 config = context.config
-target_metadata = None  # el esquema llega con CDM-40
+target_metadata = Base.metadata
 
 
 def _engine() -> Engine:

@@ -1,0 +1,179 @@
+<div class="workspace-selector-container">
+  @if (workspaceService.activeWorkspace(); as active) {
+    <button
+      type="button"
+      class="selector-trigger"
+      (click)="toggleDropdown()"
+      [attr.aria-expanded]="isOpen()"
+      aria-haspopup="true"
+      aria-label="Seleccionar espacio de trabajo"
+    >
+      <svg
+        class="icon-building"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+        <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+        <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+        <path d="M10 6h4" />
+        <path d="M10 10h4" />
+        <path d="M10 14h4" />
+        <path d="M10 18h4" />
+      </svg>
+      <div class="active-info">
+        <span class="active-name">{{ active.name }}</span>
+        <span class="role-badge role-{{ active.role | lowercase }}">
+          {{ active.role }}
+        </span>
+      </div>
+      <svg
+        class="icon-chevron"
+        [class.icon-rotated]="isOpen()"
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </button>
+  } @else {
+    <button
+      type="button"
+      class="selector-trigger empty-state-trigger"
+      (click)="navigateToNewWorkspace()"
+      aria-label="Crear tu primer espacio de trabajo"
+    >
+      <svg
+        class="icon-plus"
+        width="18"
+        height="18"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      <span>+ Crear espacio</span>
+    </button>
+  }
+
+  @if (isOpen()) {
+    <div
+      class="dropdown-menu"
+      role="menu"
+      aria-label="Espacios de trabajo disponibles"
+    >
+      <div class="dropdown-header">
+        <span>Tus espacios de trabajo</span>
+      </div>
+
+      <ul class="workspace-list" role="none">
+        @for (ws of workspaceService.workspaces(); track ws.id) {
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              class="workspace-item"
+              [class.active-item]="ws.id === workspaceService.activeWorkspace()?.id"
+              (click)="selectWorkspace(ws)"
+            >
+              <div class="ws-details">
+                <span class="ws-name">{{ ws.name }}</span>
+                <span class="role-badge role-{{ ws.role | lowercase }}">
+                  {{ ws.role }}
+                </span>
+              </div>
+              @if (ws.id === workspaceService.activeWorkspace()?.id) {
+                <svg
+                  class="icon-check"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+
+      <div class="dropdown-divider" role="separator"></div>
+
+      <div class="dropdown-actions">
+        <button
+          type="button"
+          role="menuitem"
+          class="action-btn"
+          (click)="navigateToMembers()"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          <span>Miembros y roles</span>
+        </button>
+
+        <button
+          type="button"
+          role="menuitem"
+          class="action-btn action-create"
+          (click)="navigateToNewWorkspace()"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          <span>Nuevo workspace</span>
+        </button>
+      </div>
+    </div>
+  }
+</div>

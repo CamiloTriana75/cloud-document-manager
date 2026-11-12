@@ -3,11 +3,12 @@ import { Component, inject } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 
 import { AuthService } from './core/auth/auth.service';
+import { WorkspaceSelectorComponent } from './core/workspaces/workspace-selector';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, RouterOutlet, RouterLink],
+  imports: [CommonModule, RouterOutlet, RouterLink, WorkspaceSelectorComponent],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
