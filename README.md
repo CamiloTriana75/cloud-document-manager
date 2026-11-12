@@ -1,2 +1,56 @@
-# cloud-document-manager
-Cloud Document Manager — Multi-tenant document management platform built with FastAPI, Angular and AWS.
+# Cloud Document Manager (CDM)
+
+Aplicación web SaaS multi-tenant para almacenar, organizar y consultar documentos en la nube de forma segura: carga directa a S3 con URLs prefirmadas, metadatos en PostgreSQL y procesamiento asíncrono S3 → SQS → Lambda.
+
+> **Estado:** MVP 0.1 en construcción. Ver [`docs/product-charter.md`](docs/product-charter.md) y el tablero Jira **CDM**.
+
+## Stack
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | Angular + TypeScript |
+| Backend | Python + FastAPI (arquitectura hexagonal) |
+| Datos | PostgreSQL + SQLAlchemy + Alembic |
+| Cloud | AWS S3 · API Gateway · Lambda · SQS · Cognito · CloudWatch |
+| IaC | Terraform |
+| CI/CD | GitHub Actions |
+| Local | Docker Compose |
+
+## Documentación
+
+| Documento | Contenido |
+|---|---|
+| [`AGENTS.md`](AGENTS.md) | Documento rector: reglas de ingeniería, seguridad, costes y protocolo para agentes |
+| [`docs/product-charter.md`](docs/product-charter.md) | Charter: propósito, roles, alcance, gobierno Kanban |
+| [`docs/product/mvp-journeys.md`](docs/product/mvp-journeys.md) | Journeys del MVP, matriz de permisos, límites |
+| [`docs/architecture/domain-model.md`](docs/architecture/domain-model.md) | Modelo de dominio, diagramas, invariantes |
+| [`docs/adr/`](docs/adr/README.md) | Decisiones de arquitectura (ADR) |
+| [`docs/development/branching.md`](docs/development/branching.md) | Estrategia de ramas |
+| [`docs/development/conventions.md`](docs/development/conventions.md) | Estructura del monorepo, convenciones y herramientas |
+
+## Estructura del repositorio
+
+Monorepo (ver detalle en [`docs/development/conventions.md`](docs/development/conventions.md)):
+
+```text
+apps/api        # FastAPI hexagonal
+apps/web        # Angular
+infrastructure/ # Terraform
+docs/           # producto, arquitectura, ADRs, desarrollo
+```
+
+## Desarrollo local
+
+En construcción — se completará con el esqueleto backend (CDM-13), Angular (CDM-14) y Docker Compose (CDM-15).
+
+```bash
+cp .env.example .env   # rellenar valores locales; .env nunca se commitea
+```
+
+## Reglas rápidas para colaboradores (y agentes)
+
+1. Leer `AGENTS.md` completo antes de proponer cambios.
+2. Ramas desde `develop`; commits `tipo(scope): ... (CDM-XX)`.
+3. Aislamiento multi-tenant no negociable: toda consulta de tenant filtra por `workspace_id` autorizado.
+4. Nada se considera terminado sin pruebas, lint limpio y doc actualizada.
+5. Recursos AWS: nunca crear sin estimación de coste + aprobación del propietario.
