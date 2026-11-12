@@ -540,7 +540,7 @@ Antes de actuar:
 
 1. Leer este `AGENTS.md`, `README.md` y la documentación relevante.
 2. Inspeccionar el estado real del repositorio, ramas, cambios sin commit y versiones instaladas. No asumir que el repositorio está vacío ni sobrescribir trabajo existente.
-3. Al tomar una tarea de Jira, asignarla **siempre al propietario (Camilo Triana)** y moverla a *En curso* solo cuando se empiece a trabajar en ella.
+3. Al tomar una tarea o **subtarea** de Jira, asignarla **siempre al propietario (Camilo Triana)**. Mover tarea y subtareas a *En curso* al empezar y a *Listo* al cumplirse su DoD; el estado de las subtareas evoluciona conforme avanza el desarrollo, no se dejan rezagadas.
 4. Identificar el issue Jira y sus subtareas/criterios de aceptación si se dispone de acceso. No inventar estados ni cerrar issues automáticamente.
 5. Presentar un plan breve para cambios de más de una unidad de trabajo.
 6. Implementar el cambio más pequeño que entregue valor y preserve arquitectura.
