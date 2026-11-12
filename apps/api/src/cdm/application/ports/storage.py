@@ -6,7 +6,18 @@ Los casos de uso dependen exclusivamente de esta interfaz, nunca de boto3 ni de 
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol
+
+
+@dataclass(frozen=True)
+class ObjectMetadata:
+    """Metadatos de un objeto inspeccionado en el almacenamiento (HeadObject)."""
+
+    storage_key: str
+    size_bytes: int
+    content_type: str | None = None
+    etag: str | None = None
 
 
 class StoragePort(Protocol):
@@ -47,5 +58,12 @@ class StoragePort(Protocol):
 
         Retorna:
             URL prefirmada HTTPS válida temporalmente para PUT directo.
+        """
+        ...
+
+    def get_object_metadata(self, storage_key: str) -> ObjectMetadata | None:
+        """Obtiene metadatos de un objeto en S3 (HeadObject / reconciliación CDM-32).
+
+        Retorna None si el objeto no existe en el bucket.
         """
         ...
