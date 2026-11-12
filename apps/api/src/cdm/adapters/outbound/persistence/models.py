@@ -16,6 +16,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
 from cdm.domain.document import Document, DocumentStatus
+from cdm.domain.upload_session import UploadSession, UploadSessionStatus
 from cdm.domain.workspace import (
     MembershipStatus,
     User,
@@ -282,4 +283,79 @@ class DocumentModel(Base):
             created_at=doc.created_at,
             updated_at=doc.updated_at,
             deleted_at=doc.deleted_at,
+        )
+
+
+class UploadSessionModel(Base):
+    """Modelo ORM para la tabla upload_sessions (CDM-29 / AGENTS.md §10)."""
+
+    __tablename__ = "upload_sessions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    document_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    storage_key: Mapped[str] = mapped_column(String(512), unique=True, nullable=False, index=True)
+    expected_size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    expected_content_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    expected_checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="PENDING")
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+
+    workspace: Mapped[WorkspaceModel] = relationship("WorkspaceModel")
+    user: Mapped[UserModel] = relationship("UserModel")
+    document: Mapped[DocumentModel] = relationship("DocumentModel")
+
+    def to_domain(self) -> UploadSession:
+        return UploadSession(
+            id=self.id,
+            workspace_id=self.workspace_id,
+            user_id=self.user_id,
+            document_id=self.document_id,
+            storage_key=self.storage_key,
+            expected_size_bytes=self.expected_size_bytes,
+            expected_content_type=self.expected_content_type,
+            expected_checksum_sha256=self.expected_checksum_sha256,
+            status=UploadSessionStatus(self.status),
+            expires_at=self.expires_at,
+            created_at=self.created_at,
+            updated_at=self.updated_at,
+        )
+
+    @classmethod
+    def from_domain(cls, session: UploadSession) -> UploadSessionModel:
+        return cls(
+            id=session.id,
+            workspace_id=session.workspace_id,
+            user_id=session.user_id,
+            document_id=session.document_id,
+            storage_key=session.storage_key,
+            expected_size_bytes=session.expected_size_bytes,
+            expected_content_type=session.expected_content_type,
+            expected_checksum_sha256=session.expected_checksum_sha256,
+            status=session.status.value,
+            expires_at=session.expires_at,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
         )

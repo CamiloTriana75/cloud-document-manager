@@ -1,6 +1,6 @@
-"""Adaptador de almacenamiento para S3 (CDM-27 / AGENTS.md §6, §12).
+"""Adaptador de almacenamiento para S3 (CDM-27 / CDM-29 / AGENTS.md §6, §12).
 
-Implementa StoragePort para la generación de URLs prefirmadas de descarga segura.
+Implementa StoragePort para la generación de URLs prefirmadas de subida y descarga seguras.
 """
 
 from __future__ import annotations
@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+from typing import Any
 from urllib.parse import quote
 
 from cdm.application.ports.storage import StoragePort
@@ -26,6 +27,17 @@ class S3StorageAdapter(StoragePort):
         self._region = region
         self._endpoint_url = endpoint_url
 
+    def _get_s3_client(self) -> Any:
+        import boto3  # type: ignore[import-not-found]
+        from botocore.config import Config  # type: ignore[import-not-found]
+
+        return boto3.client(
+            "s3",
+            region_name=self._region,
+            endpoint_url=self._endpoint_url,
+            config=Config(signature_version="s3v4"),
+        )
+
     def generate_download_url(
         self,
         storage_key: str,
@@ -38,15 +50,7 @@ class S3StorageAdapter(StoragePort):
         de lo contrario, genera una URL simulada determinista firmada para desarrollo local.
         """
         try:
-            import boto3  # type: ignore[import-not-found]
-            from botocore.config import Config  # type: ignore[import-not-found]
-
-            s3_client = boto3.client(
-                "s3",
-                region_name=self._region,
-                endpoint_url=self._endpoint_url,
-                config=Config(signature_version="s3v4"),
-            )
+            s3_client = self._get_s3_client()
             params: dict[str, str] = {
                 "Bucket": self._bucket_name,
                 "Key": storage_key,
@@ -72,4 +76,41 @@ class S3StorageAdapter(StoragePort):
             return (
                 f"https://{self._bucket_name}.s3.{self._region}.amazonaws.com/"
                 f"{encoded_key}?expires={timestamp}&signature={signature}"
+            )
+
+    def generate_upload_url(
+        self,
+        storage_key: str,
+        content_type: str,
+        size_bytes: int,
+        expires_in_seconds: int = 900,
+    ) -> str:
+        """Genera una URL firmada de subida (PUT) temporal directa hacia S3 (CDM-29).
+
+        Si boto3 está disponible y configurado con credenciales, delega en S3Client;
+        de lo contrario, genera una URL simulada determinista firmada para desarrollo local.
+        """
+        try:
+            s3_client = self._get_s3_client()
+            url: str = s3_client.generate_presigned_url(
+                ClientMethod="put_object",
+                Params={
+                    "Bucket": self._bucket_name,
+                    "Key": storage_key,
+                    "ContentType": content_type,
+                },
+                ExpiresIn=expires_in_seconds,
+            )
+            return url
+        except Exception:
+            timestamp = int(time.time()) + expires_in_seconds
+            signature = hmac.new(
+                b"cdm-local-secret",
+                f"PUT:{storage_key}:{content_type}:{timestamp}".encode(),
+                hashlib.sha256,
+            ).hexdigest()[:16]
+            encoded_key = quote(storage_key)
+            return (
+                f"https://{self._bucket_name}.s3.{self._region}.amazonaws.com/"
+                f"{encoded_key}?action=put&expires={timestamp}&signature={signature}"
             )

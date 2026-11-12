@@ -7,7 +7,7 @@ el adaptador HTTP y la configuración.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from cdm.adapters.inbound.http import auth, documents, health, workspaces
+from cdm.adapters.inbound.http import auth, documents, health, upload_sessions, workspaces
 from cdm.adapters.inbound.http.errors import register_error_handlers
 from cdm.config.settings import Settings, load_settings
 
@@ -19,6 +19,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Crea la aplicación FastAPI con su configuración y routers."""
     settings = settings or load_settings()
     app = FastAPI(title=_API_TITLE, version=_API_VERSION)
+    app.dependency_overrides[load_settings] = lambda: settings
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
@@ -31,6 +32,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth.router)
     app.include_router(workspaces.router)
     app.include_router(documents.router)
+    app.include_router(upload_sessions.router)
     return app
 
 

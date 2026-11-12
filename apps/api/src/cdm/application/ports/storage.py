@@ -29,3 +29,23 @@ class StoragePort(Protocol):
             URL prefirmada HTTPS válida temporalmente.
         """
         ...
+
+    def generate_upload_url(
+        self,
+        storage_key: str,
+        content_type: str,
+        size_bytes: int,
+        expires_in_seconds: int = 900,
+    ) -> str:
+        """Genera una URL temporal prefirmada PUT para carga directa a S3 (CDM-29).
+
+        Parámetros:
+            storage_key: Clave opaca del objeto bajo el prefijo del tenant.
+            content_type: Tipo MIME validado de la allowlist.
+            size_bytes: Tamaño exacto esperado en bytes.
+            expires_in_seconds: Caducidad corta de la URL (default: 15 minutos).
+
+        Retorna:
+            URL prefirmada HTTPS válida temporalmente para PUT directo.
+        """
+        ...
