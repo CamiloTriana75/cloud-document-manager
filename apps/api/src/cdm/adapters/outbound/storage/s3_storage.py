@@ -152,6 +152,21 @@ class S3StorageAdapter(StoragePort):
             # Fallback en desarrollo local sin credenciales de AWS
             return self._mock_objects.get(storage_key)
 
+    def delete_object(self, storage_key: str) -> bool:
+        """Elimina físicamente un objeto de S3 si existe (limpieza CDM-34)."""
+        try:
+            s3_client = self._get_s3_client()
+            s3_client.delete_object(
+                Bucket=self._bucket_name,
+                Key=storage_key,
+            )
+            self._mock_objects.pop(storage_key, None)
+            return True
+        except Exception:
+            # Fallback en desarrollo local sin credenciales de AWS
+            self._mock_objects.pop(storage_key, None)
+            return True
+
     def register_mock_object(
         self,
         storage_key: str,

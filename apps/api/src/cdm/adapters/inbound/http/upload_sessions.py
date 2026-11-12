@@ -9,18 +9,23 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Path, status
 from pydantic import BaseModel, Field
 
 from cdm.adapters.inbound.http.dependencies import (
+    get_cancel_upload_session_use_case,
+    get_cleanup_expired_upload_sessions_use_case,
     get_create_upload_session_use_case,
     get_tenant_context,
 )
 from cdm.adapters.inbound.http.errors import ERROR_RESPONSES
 from cdm.application.use_cases.upload_sessions import (
+    CancelUploadSessionUseCase,
+    CleanupExpiredUploadSessionsUseCase,
     CreateUploadSessionUseCase,
 )
 from cdm.domain.tenant import TenantContext
+from cdm.domain.workspace import WorkspaceRole
 
 router = APIRouter(
     prefix="/api/v1/workspaces/{workspace_id}/upload-sessions",
@@ -82,6 +87,26 @@ class EnvelopeUploadSession(BaseModel):
     data: UploadSessionResponse
 
 
+class EnvelopeMessage(BaseModel):
+    """Envelope para mensajes de confirmación de acción."""
+
+    data: dict[str, str]
+
+
+class CleanupReportResponse(BaseModel):
+    """Métricas resultantes del barrido de limpieza de sesiones y objetos huérfanos."""
+
+    expired_sessions_count: int
+    cleaned_objects_count: int
+    skipped_confirmed_documents_count: int
+
+
+class EnvelopeCleanupReport(BaseModel):
+    """Envelope de respuesta para el reporte de limpieza."""
+
+    data: CleanupReportResponse
+
+
 # --- Endpoints ---
 
 
@@ -117,5 +142,49 @@ def create_upload_session(
             storage_key=result.storage_key,
             expires_in_seconds=result.expires_in_seconds,
             required_headers=result.required_headers,
+        )
+    )
+
+
+@router.post(
+    "/{session_id}/cancel",
+    response_model=EnvelopeMessage,
+    summary="Cancelar sesión de carga prefirmada",
+    description="Cancela una sesión de carga en curso y purga objetos temporales huérfanos en S3.",
+    responses=ERROR_RESPONSES,
+)
+def cancel_upload_session(
+    session_id: Annotated[UUID, Path(description="Identificador de la sesión de carga a cancelar")],
+    tenant: Annotated[TenantContext, Depends(get_tenant_context)],
+    use_case: Annotated[CancelUploadSessionUseCase, Depends(get_cancel_upload_session_use_case)],
+) -> EnvelopeMessage:
+    use_case.execute(tenant=tenant, upload_session_id=session_id)
+    return EnvelopeMessage(data={"message": "Sesión de carga cancelada exitosamente."})
+
+
+@router.post(
+    "/cleanup",
+    response_model=EnvelopeCleanupReport,
+    summary="Limpiar sesiones expiradas y objetos huérfanos",
+    description=(
+        "Expira sesiones vencidas y purga objetos temporales huérfanos en S3. "
+        "Garantiza que nunca se eliminan documentos confirmados (UPLOADED, PROCESSING, READY). "
+        "Requiere rol ADMIN o superior."
+    ),
+    responses=ERROR_RESPONSES,
+)
+def cleanup_expired_upload_sessions(
+    tenant: Annotated[TenantContext, Depends(get_tenant_context)],
+    use_case: Annotated[
+        CleanupExpiredUploadSessionsUseCase, Depends(get_cleanup_expired_upload_sessions_use_case)
+    ],
+) -> EnvelopeCleanupReport:
+    tenant.require_role(WorkspaceRole.ADMIN)
+    report = use_case.execute(workspace_id=tenant.workspace_id)
+    return EnvelopeCleanupReport(
+        data=CleanupReportResponse(
+            expired_sessions_count=report.expired_sessions_count,
+            cleaned_objects_count=report.cleaned_objects_count,
+            skipped_confirmed_documents_count=report.skipped_confirmed_documents_count,
         )
     )
