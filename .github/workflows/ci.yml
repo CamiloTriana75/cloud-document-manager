@@ -98,3 +98,26 @@ jobs:
 
       - name: Pruebas (vitest, una sola pasada)
         run: pnpm exec ng test --no-watch
+
+  infra:
+    name: Infra — terraform fmt y validate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infrastructure/terraform
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Terraform (versión fijada)
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.17.1
+
+      - name: Formato (fmt)
+        run: terraform fmt -check -recursive
+
+      - name: Validación (init + validate del entorno dev)
+        run: |
+          terraform -chdir=environments/dev init -input=false
+          terraform -chdir=environments/dev validate

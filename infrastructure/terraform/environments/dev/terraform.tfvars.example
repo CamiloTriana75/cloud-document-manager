@@ -1,0 +1,11 @@
+# Ejemplo de tfvars para dev (copiar a terraform.tfvars, nunca commitear tfvars reales).
+# Los defaults ya reflejan las decisiones de la auditoría CDM-17 y ADR-0007/0008.
+#
+# aws_region          = "us-east-1"
+# environment         = "dev"
+# project_name        = "cdm"
+# owner               = "Camilo Triana"
+# log_retention_days  = 14
+# max_file_size_mb    = 50
+# allowed_cors_origins = ["http://localhost:4200"]
+# lambda_memory_mb    = 256
