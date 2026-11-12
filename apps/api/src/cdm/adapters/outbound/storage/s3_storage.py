@@ -50,15 +50,21 @@ class S3StorageAdapter(StoragePort):
         Si boto3 está disponible y configurado con credenciales, delega en S3Client;
         de lo contrario, genera una URL simulada determinista firmada para desarrollo local.
         """
+        params: dict[str, str] = {
+            "Bucket": self._bucket_name,
+            "Key": storage_key,
+        }
+        if filename:
+            # Control y escape estricto de Content-Disposition (RFC 6266 / RFC 5987)
+            # Evita HTTP Header Injection y garantiza nombre correcto en descarga
+            ascii_safe = filename.replace('"', '\\"').replace("\r", "").replace("\n", "")
+            utf8_safe = quote(filename)
+            params["ResponseContentDisposition"] = (
+                f"attachment; filename=\"{ascii_safe}\"; filename*=UTF-8''{utf8_safe}"
+            )
+
         try:
             s3_client = self._get_s3_client()
-            params: dict[str, str] = {
-                "Bucket": self._bucket_name,
-                "Key": storage_key,
-            }
-            if filename:
-                params["ResponseContentDisposition"] = f'attachment; filename="{filename}"'
-
             url: str = s3_client.generate_presigned_url(
                 ClientMethod="get_object",
                 Params=params,
@@ -74,10 +80,15 @@ class S3StorageAdapter(StoragePort):
                 hashlib.sha256,
             ).hexdigest()[:16]
             encoded_key = quote(storage_key)
-            return (
+            download_url = (
                 f"https://{self._bucket_name}.s3.{self._region}.amazonaws.com/"
                 f"{encoded_key}?expires={timestamp}&signature={signature}"
             )
+            if filename:
+                download_url += (
+                    f"&response-content-disposition={quote(params['ResponseContentDisposition'])}"
+                )
+            return download_url
 
     def generate_upload_url(
         self,

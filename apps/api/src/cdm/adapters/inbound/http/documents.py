@@ -103,6 +103,18 @@ class DocumentResponse(BaseModel):
     updated_at: datetime
 
 
+class DownloadUrlRequest(BaseModel):
+    """Parámetros opcionales para la generación de la URL temporal de descarga."""
+
+    expires_in_seconds: int = Field(
+        default=900,
+        ge=60,
+        le=3600,
+        description="Tiempo de vida en segundos de la URL prefirmada (mínimo 60s, máximo 3600s)",
+        examples=[900],
+    )
+
+
 class DownloadUrlResponse(BaseModel):
     """Detalle de la URL prefirmada de descarga temporal."""
 
@@ -272,8 +284,14 @@ def generate_download_url(
     use_case: Annotated[
         AuthorizeDocumentDownloadUseCase, Depends(get_authorize_document_download_use_case)
     ],
+    payload: DownloadUrlRequest | None = None,
 ) -> EnvelopeDownloadUrl:
-    download_info = use_case.execute(tenant=tenant, document_id=document_id)
+    expires_in = payload.expires_in_seconds if payload is not None else 900
+    download_info = use_case.execute(
+        tenant=tenant,
+        document_id=document_id,
+        expires_in_seconds=expires_in,
+    )
     return EnvelopeDownloadUrl(
         data=DownloadUrlResponse(
             document_id=download_info.document_id,

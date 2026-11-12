@@ -7,6 +7,7 @@ Las reglas de acceso y roles (ADR-0001) se validan estrictamente en esta capa.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -22,9 +23,12 @@ from cdm.domain.errors import (
     InvalidDocumentDataError,
     UploadSessionExpiredError,
 )
+from cdm.domain.file_policy import validate_and_sanitize_filename
 from cdm.domain.tenant import TenantContext
 from cdm.domain.upload_session import UploadSessionStatus
 from cdm.domain.workspace import WorkspaceRole
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -169,10 +173,25 @@ class AuthorizeDocumentDownloadUseCase:
         if document.status == DocumentStatus.PENDING_UPLOAD:
             raise InvalidDocumentDataError("El documento aún no ha completado el proceso de carga.")
 
+        if document.status == DocumentStatus.FAILED:
+            raise InvalidDocumentDataError(
+                "El documento se encuentra en estado fallido y no está disponible para descarga."
+            )
+
+        safe_filename = validate_and_sanitize_filename(document.original_filename)
+
         download_url = self._storage.generate_download_url(
             storage_key=document.storage_key,
             expires_in_seconds=expires_in_seconds,
-            filename=document.original_filename,
+            filename=safe_filename,
+        )
+
+        logger.info(
+            "Authorized document download for tenant=%s user=%s document=%s expires_in_seconds=%s",
+            tenant.workspace_id,
+            tenant.user_id,
+            document.id,
+            expires_in_seconds,
         )
 
         return DocumentDownloadDTO(

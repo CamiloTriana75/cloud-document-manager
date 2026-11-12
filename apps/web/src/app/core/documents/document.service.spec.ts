@@ -12,6 +12,7 @@ import { TestBed } from '@angular/core/testing';
 
 import {
   DocumentItem,
+  DownloadUrlResponse,
   UploadProgressState,
   UploadSessionRequest,
   UploadSessionResponse,
@@ -107,6 +108,26 @@ describe('DocumentService', () => {
     expect(req.request.method).toBe('POST');
     expect(req.request.body).toEqual({});
     req.flush({ data: mockDocument });
+  });
+
+  it('getDownloadUrl envía POST al endpoint de download-url y retorna URL prefirmada', () => {
+    const mockDownload: DownloadUrlResponse = {
+      document_id: 'doc-456',
+      original_filename: 'reporte.pdf',
+      download_url: 'https://s3.amazonaws.com/test/reporte.pdf?signature=abc',
+      expires_in_seconds: 600,
+    };
+
+    service.getDownloadUrl('ws-1', 'doc-456', 600).subscribe((res) => {
+      expect(res).toEqual(mockDownload);
+    });
+
+    const req = http.expectOne(
+      '/api/v1/workspaces/ws-1/documents/doc-456/download-url'
+    );
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ expires_in_seconds: 600 });
+    req.flush({ data: mockDownload });
   });
 
   it('listDocuments consulta catálogo con parámetros de paginación', () => {
