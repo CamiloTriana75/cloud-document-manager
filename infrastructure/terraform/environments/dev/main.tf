@@ -37,6 +37,8 @@ module "lambda_api" {
     ENVIRONMENT           = var.environment
     ALLOWED_CORS_ORIGINS  = join(",", var.allowed_cors_origins)
     DOCUMENTS_BUCKET_NAME = module.s3_document_store.bucket_name
+    COGNITO_USER_POOL_ID  = module.cognito.user_pool_id
+    COGNITO_CLIENT_ID     = module.cognito.client_id
   }
 
   tags = local.tags
@@ -69,6 +71,24 @@ module "frontend_hosting" {
   project_name  = var.project_name
   environment   = var.environment
   force_destroy = true
+
+  tags = local.tags
+}
+
+module "cognito" {
+  source = "../../modules/cognito"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+  callback_urls = [
+    "http://localhost:4200/auth/callback",
+    "${module.frontend_hosting.cloudfront_url}/auth/callback"
+  ]
+  logout_urls = [
+    "http://localhost:4200/auth/login",
+    "${module.frontend_hosting.cloudfront_url}/auth/login"
+  ]
 
   tags = local.tags
 }

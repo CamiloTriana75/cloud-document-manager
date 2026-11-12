@@ -4,4 +4,10 @@
 export const environment = {
   production: true,
   apiBaseUrl: 'https://api.example.invalid',
+  cognito: {
+    region: 'us-east-1',
+    userPoolId: '',
+    clientId: '',
+    domain: '',
+  },
 };
