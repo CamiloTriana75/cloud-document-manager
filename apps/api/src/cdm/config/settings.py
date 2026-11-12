@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     cognito_region: str = "us-east-1"
     s3_bucket_name: str = "cdm-documents-dev"
     s3_region: str = "us-east-1"
+    s3_endpoint_url: str | None = None
+    max_upload_size_bytes: int = 52428800  # 50 MB
+    upload_url_expires_in_seconds: int = 900  # 15 min
 
     @property
     def cors_origin_list(self) -> list[str]:

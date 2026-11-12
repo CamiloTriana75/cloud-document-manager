@@ -21,6 +21,9 @@ from cdm.adapters.outbound.persistence.repositories import (
     SqlAlchemyUserRepository,
     SqlAlchemyWorkspaceRepository,
 )
+from cdm.adapters.outbound.persistence.sql_upload_session_repository import (
+    SqlAlchemyUploadSessionRepository,
+)
 from cdm.adapters.outbound.storage.s3_storage import S3StorageAdapter
 from cdm.application.ports.storage import StoragePort
 from cdm.application.use_cases.documents import (
@@ -29,6 +32,9 @@ from cdm.application.use_cases.documents import (
     DeleteDocumentUseCase,
     GetDocumentDetailUseCase,
     ListDocumentsUseCase,
+)
+from cdm.application.use_cases.upload_sessions import (
+    CreateUploadSessionUseCase,
 )
 from cdm.application.use_cases.workspaces import (
     AddWorkspaceMemberUseCase,
@@ -208,4 +214,18 @@ def get_create_document_record_use_case(
 ) -> CreateDocumentRecordUseCase:
     return CreateDocumentRecordUseCase(
         document_repo=SqlAlchemyDocumentRepository(session),
+    )
+
+
+def get_create_upload_session_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StoragePort, Depends(get_storage_port)],
+    settings: Annotated[Settings, Depends(load_settings)],
+) -> CreateUploadSessionUseCase:
+    return CreateUploadSessionUseCase(
+        document_repo=SqlAlchemyDocumentRepository(session),
+        upload_session_repo=SqlAlchemyUploadSessionRepository(session),
+        storage=storage,
+        max_upload_size_bytes=settings.max_upload_size_bytes,
+        expires_in_seconds=settings.upload_url_expires_in_seconds,
     )

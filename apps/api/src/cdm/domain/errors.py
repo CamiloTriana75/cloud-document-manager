@@ -106,3 +106,39 @@ class FilePolicyViolationError(DomainError):
     """Formato no permitido o tamaño excedido según la política de archivos."""
 
     code = "file_policy_violation"
+
+
+class FileTypeNotAllowedError(FilePolicyViolationError):
+    """Tipo MIME o extensión de archivo no permitidos en la allowlist."""
+
+    code = "file_type_not_allowed"
+
+
+class FileSizeExceededError(FilePolicyViolationError):
+    """El tamaño del archivo supera el límite configurado."""
+
+    code = "file_size_exceeded"
+
+
+class InvalidFileNameError(DomainError):
+    """Nombre de archivo inválido, vacío o con intento de path traversal."""
+
+    code = "invalid_file_name"
+
+
+class InvalidChecksumError(DomainError):
+    """Formato de checksum no válido (se requiere SHA-256 hexadecimal de 64 caracteres)."""
+
+    code = "invalid_checksum"
+
+
+class UploadSessionNotFoundError(NotFoundError):
+    """Sesión de carga inexistente o perteneciente a otro workspace."""
+
+    code = "upload_session_not_found"
+
+
+class UploadSessionExpiredError(ConflictError):
+    """La sesión de carga ha expirado y ya no puede ser completada."""
+
+    code = "upload_session_expired"

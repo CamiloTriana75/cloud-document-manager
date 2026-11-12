@@ -16,10 +16,16 @@ from cdm.domain.errors import (
     ConflictError,
     DomainError,
     FilePolicyViolationError,
+    FileSizeExceededError,
+    FileTypeNotAllowedError,
+    InvalidChecksumError,
+    InvalidDocumentDataError,
+    InvalidFileNameError,
     NotAMemberError,
     NotFoundError,
     PermissionDeniedError,
     UnauthenticatedError,
+    UploadSessionExpiredError,
 )
 
 _ERROR_ENVELOPE_DEFINITION: dict[str, Any] = {
@@ -40,19 +46,29 @@ _ERROR_ENVELOPE_DEFINITION: dict[str, Any] = {
 #: Respuestas de error reutilizables en la declaracion de routers.
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: _ERROR_ENVELOPE_DEFINITION,
+    401: _ERROR_ENVELOPE_DEFINITION,
     403: _ERROR_ENVELOPE_DEFINITION,
     404: _ERROR_ENVELOPE_DEFINITION,
+    409: _ERROR_ENVELOPE_DEFINITION,
+    413: _ERROR_ENVELOPE_DEFINITION,
+    415: _ERROR_ENVELOPE_DEFINITION,
     422: _ERROR_ENVELOPE_DEFINITION,
 }
 
-#: Estado HTTP por tipo de error de dominio.
+#: Estado HTTP por tipo de error de dominio (más específicos primero).
 _STATUS_BY_ERROR: dict[type[DomainError], int] = {
+    FileTypeNotAllowedError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+    FileSizeExceededError: status.HTTP_413_CONTENT_TOO_LARGE,
+    InvalidFileNameError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    InvalidChecksumError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    InvalidDocumentDataError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    UploadSessionExpiredError: status.HTTP_409_CONFLICT,
+    FilePolicyViolationError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
     NotFoundError: status.HTTP_404_NOT_FOUND,
     PermissionDeniedError: status.HTTP_403_FORBIDDEN,
     NotAMemberError: status.HTTP_403_FORBIDDEN,
     UnauthenticatedError: status.HTTP_401_UNAUTHORIZED,
     ConflictError: status.HTTP_409_CONFLICT,
-    FilePolicyViolationError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
     DomainError: status.HTTP_400_BAD_REQUEST,
 }
 
