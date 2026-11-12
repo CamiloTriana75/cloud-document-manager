@@ -45,6 +45,7 @@ source = { editable = "." }
 dependencies = [
     { name = "alembic" },
     { name = "fastapi" },
+    { name = "mangum" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -64,6 +65,7 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = "==1.20.1" },
     { name = "fastapi", specifier = "==0.118.0" },
+    { name = "mangum", specifier = "==0.19.0" },
     { name = "psycopg", extras = ["binary"], specifier = "==3.3.9" },
     { name = "pydantic", specifier = "==2.11.9" },
     { name = "pydantic-settings", specifier = "==2.10.1" },
@@ -271,6 +273,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/5a/09/e07c4b5579a79f4b16f8d4f29f6c54514ac787c4ad506b8c4f28a0e6b0bf/mako-1.4.3.tar.gz", hash = "sha256:cd6537fe88d5fec315c55c2f8529bc4ce7a9a352ad7db3eeaa6a66e2dd4ec37a", size = 412799, upload-time = "2026-09-22T20:54:31.509Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6d/a0/053d6af3e8f871e0073b4a36732d9e65be77a72e5434c31b94f6af78a6bb/mako-1.4.3-py3-none-any.whl", hash = "sha256:723296007c870bfd6b3f0c3230dba7198096e5269297ebf5e4eff9e7ffa39d4f", size = 80164, upload-time = "2026-09-22T20:54:33.128Z" },
+]
+
+[[package]]
+name = "mangum"
+version = "0.19.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/97/e0/6ee9bfa27226252a449cba12fc57d3f1c3ce661813377ab33e29245389a4/mangum-0.19.0.tar.gz", hash = "sha256:e388e7c491b7b67970f8234e46fd4a7b21ff87785848f418de08148f71cf0bd6", size = 85792, upload-time = "2024-09-26T20:44:49.773Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/ec/dd1cae5f6b1b4a08c01de587b45e889036b2f8c06408621e0cb273909965/mangum-0.19.0-py3-none-any.whl", hash = "sha256:e500b35f495d5e68ac98bc97334896d6101523f2ee2c57ba6a61893b65266e59", size = 17083, upload-time = "2024-09-26T20:44:48.357Z" },
 ]
 
 [[package]]
