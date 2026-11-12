@@ -28,7 +28,9 @@ class Settings(BaseSettings):
         """URL del emisor JWT de Cognito (iss)."""
         if not self.cognito_user_pool_id:
             return ""
-        return f"https://cognito-idp.{self.cognito_region}.amazonaws.com/{self.cognito_user_pool_id}"
+        return (
+            f"https://cognito-idp.{self.cognito_region}.amazonaws.com/{self.cognito_user_pool_id}"
+        )
 
 
 def load_settings() -> Settings:

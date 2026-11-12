@@ -42,6 +42,24 @@ class UnauthenticatedError(DomainError):
     code = "unauthenticated"
 
 
+class MissingTokenError(UnauthenticatedError):
+    """Encabezado de autorización ausente o con formato incorrecto."""
+
+    code = "missing_token"
+
+
+class InvalidTokenError(UnauthenticatedError):
+    """Firma de token inválida, issuer no coincide o claims corruptos."""
+
+    code = "invalid_token"
+
+
+class ExpiredTokenError(UnauthenticatedError):
+    """El token ha superado su tiempo de vida (exp)."""
+
+    code = "token_expired"
+
+
 class ConflictError(DomainError):
     """El estado actual impide la operación (p. ej. transición prohibida)."""
 

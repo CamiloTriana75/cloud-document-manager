@@ -70,8 +70,19 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(DomainError)
     async def _domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
-        status_code = _STATUS_BY_ERROR.get(type(exc), status.HTTP_400_BAD_REQUEST)
-        return _json(status_code, _error_body(exc.code, exc.message, exc.details))
+        status_code = status.HTTP_400_BAD_REQUEST
+        for error_type, mapped_status in _STATUS_BY_ERROR.items():
+            if isinstance(exc, error_type):
+                status_code = mapped_status
+                break
+        headers: dict[str, str] = {}
+        if isinstance(exc, UnauthenticatedError):
+            headers["WWW-Authenticate"] = "Bearer"
+        return JSONResponse(
+            status_code=status_code,
+            content=jsonable_encoder(_error_body(exc.code, exc.message, exc.details)),
+            headers=headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error_handler(
