@@ -62,3 +62,13 @@ module "rds_postgres" {
 
   tags = local.tags
 }
+
+module "frontend_hosting" {
+  source = "../../modules/frontend-hosting"
+
+  project_name  = var.project_name
+  environment   = var.environment
+  force_destroy = true
+
+  tags = local.tags
+}
