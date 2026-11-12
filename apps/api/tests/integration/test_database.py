@@ -18,7 +18,7 @@ def test_postgres_responde_y_version_es_16() -> None:
     engine = create_db_engine(settings)
     try:
         with engine.connect() as conn:
-            version = conn.execute(text("SELECT version()")).scalar_one()
+            version: object = conn.execute(text("SELECT version()")).scalar_one()
             assert "PostgreSQL 16." in str(version)
     except SQLAlchemyError as exc:
         pytest.skip(f"PostgreSQL no disponible localmente: {exc}")
@@ -30,7 +30,9 @@ def test_migraciones_alembic_registradas() -> None:
     engine = create_db_engine(load_settings())
     try:
         with engine.connect() as conn:
-            rows = conn.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
+            rows: list[str] = list(
+                conn.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
+            )
             assert "0001" in rows
     except SQLAlchemyError as exc:
         pytest.skip(f"PostgreSQL no disponible localmente: {exc}")

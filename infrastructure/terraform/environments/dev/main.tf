@@ -1,18 +1,24 @@
-# Stack dev — CDM (CDM-18: esqueleto; los módulos se instancian en CDM-19..23).
+# Stack dev — CDM (CDM-18 / CDM-19)
 #
-# Módulos previstos (se crean cuando exista el recurso que los necesite):
-#   - s3-document-store : bucket privado de documentos
-#   - sqs-worker-queue  : cola de eventos S3 + DLQ
-#   - lambda-api        : FastAPI vía Mangum
-#   - lambda-worker     : procesador asíncrono
-#   - cognito-pool      : User Pool + App Client
-#   - apigw-http        : HTTP API entrante
+# Módulos instanciados:
+#   - s3_document_store : bucket privado de documentos (CDM-19)
 #
-# Reglas: este archivo instancia módulos con name/tags/límites desde variables;
-# no contiene recursos directos. Aplicar solo con aprobación del propietario.
+# Módulos pendientes para siguientes tareas:
+#   - sqs_worker_queue  : cola de eventos S3 + DLQ (CDM-35)
+#   - lambda_api        : FastAPI vía Mangum (CDM-20)
+#   - lambda_worker     : procesador asíncrono (CDM-36)
+#   - cognito_pool      : User Pool + App Client (CDM-24)
+#   - apigw_http        : HTTP API entrante (CDM-20)
+#
+# Regla: aplicar solo con revisión del plan y aprobación explícita del propietario.
 
-# En CDM-19+ se añaden aquí las llamadas a `module "..."` con:
-#   source        = "../../modules/<modulo>"
-#   name          = "${var.project_name}-${var.environment}"
-#   tags          = local.tags
-#   y el resto de parámetros desde las variables de este entorno.
+module "s3_document_store" {
+  source = "../../modules/s3-document-store"
+
+  bucket_prefix        = "${var.project_name}-${var.environment}-docs"
+  allowed_cors_origins = var.allowed_cors_origins
+  force_destroy        = true  # Permite teardown limpio en entorno dev (AGENTS.md §13)
+  versioning_enabled   = false # Mantiene consumo bajo en Free Plan (auditoría CDM-17)
+
+  tags = local.tags
+}
