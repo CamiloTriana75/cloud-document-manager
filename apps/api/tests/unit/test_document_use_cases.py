@@ -53,11 +53,14 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
         limit: int = 50,
         offset: int = 0,
         include_deleted: bool = False,
+        status: DocumentStatus | None = None,
     ) -> list[Document]:
         items = [
             doc
             for doc in self.documents.values()
-            if doc.workspace_id == workspace_id and (include_deleted or not doc.is_deleted)
+            if doc.workspace_id == workspace_id
+            and (status is None or doc.status == status)
+            and (status is not None or include_deleted or not doc.is_deleted)
         ]
         items.sort(key=lambda d: d.created_at, reverse=True)
         return items[offset : offset + limit]
@@ -66,11 +69,14 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
         self,
         workspace_id: UUID,
         include_deleted: bool = False,
+        status: DocumentStatus | None = None,
     ) -> int:
         return sum(
             1
             for doc in self.documents.values()
-            if doc.workspace_id == workspace_id and (include_deleted or not doc.is_deleted)
+            if doc.workspace_id == workspace_id
+            and (status is None or doc.status == status)
+            and (status is not None or include_deleted or not doc.is_deleted)
         )
 
     def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:

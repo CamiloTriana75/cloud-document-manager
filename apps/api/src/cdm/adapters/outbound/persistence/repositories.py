@@ -203,6 +203,7 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         limit: int = 50,
         offset: int = 0,
         include_deleted: bool = False,
+        status: DocumentStatus | None = None,
     ) -> list[Document]:
         stmt = (
             select(DocumentModel)
@@ -211,7 +212,9 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
             .limit(limit)
             .offset(offset)
         )
-        if not include_deleted:
+        if status is not None:
+            stmt = stmt.where(DocumentModel.status == status.value)
+        elif not include_deleted:
             stmt = stmt.where(
                 DocumentModel.deleted_at.is_(None),
                 DocumentModel.status != DocumentStatus.DELETED.value,
@@ -223,13 +226,16 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         self,
         workspace_id: UUID,
         include_deleted: bool = False,
+        status: DocumentStatus | None = None,
     ) -> int:
         stmt = (
             select(func.count())
             .select_from(DocumentModel)
             .where(DocumentModel.workspace_id == workspace_id)
         )
-        if not include_deleted:
+        if status is not None:
+            stmt = stmt.where(DocumentModel.status == status.value)
+        elif not include_deleted:
             stmt = stmt.where(
                 DocumentModel.deleted_at.is_(None),
                 DocumentModel.status != DocumentStatus.DELETED.value,

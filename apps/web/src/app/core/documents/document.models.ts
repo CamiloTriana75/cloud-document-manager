@@ -23,6 +23,7 @@ export interface DocumentItem {
   technical_metadata: Record<string, unknown>;
   created_at: string;
   updated_at: string;
+  failure_reason?: string | null;
 }
 
 export interface UploadSessionRequest {

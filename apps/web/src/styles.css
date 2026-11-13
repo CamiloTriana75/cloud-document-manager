@@ -151,3 +151,73 @@ body {
   color: #475569;
   border-color: #cbd5e1;
 }
+
+/* Document status badges globales (CDM-37 / AGENTS.md §10) */
+.doc-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.2rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.doc-status-ready {
+  background-color: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.doc-status-processing {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.doc-status-uploaded {
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  border-color: #ddd6fe;
+}
+
+.doc-status-pending {
+  background-color: #fefce8;
+  color: #a16207;
+  border-color: #fef08a;
+}
+
+.doc-status-failed {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.doc-status-deleted {
+  background-color: #f1f5f9;
+  color: #64748b;
+  border-color: #cbd5e1;
+}
+
+/* Pulsing dot indicator para procesamiento en curso */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.75);
+  }
+}
+
+.pulse-indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: currentColor;
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}

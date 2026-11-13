@@ -36,6 +36,20 @@ export const routes: Routes = [
     title: 'Crear espacio de trabajo — CDM',
   },
   {
+    path: 'workspaces/:id/documents',
+    loadComponent: () =>
+      import('./pages/documents/catalog/catalog').then(
+        (m) => m.DocumentCatalogComponent
+      ),
+    canActivate: [authGuard],
+    title: 'Catálogo de documentos — CDM',
+  },
+  {
+    path: 'workspaces/:id',
+    redirectTo: 'workspaces/:id/documents',
+    pathMatch: 'full',
+  },
+  {
     path: 'workspaces/:id/members',
     loadComponent: () =>
       import('./pages/workspaces/members/members').then(

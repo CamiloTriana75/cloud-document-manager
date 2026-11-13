@@ -79,3 +79,58 @@ def test_document_status_transitions():
 
     with pytest.raises(InvalidDocumentDataError):
         deleted.transition_to(DocumentStatus.READY)
+
+
+def test_document_failed_transition_and_sanitized_reason():
+    """Documento en FAILED guarda razón sanitizada y no expone stack traces (CDM-37)."""
+    doc = Document.create(
+        workspace_id=uuid4(),
+        uploaded_by=uuid4(),
+        original_filename="corrupted.pdf",
+        storage_key="key",
+        content_type="application/pdf",
+        size_bytes=100,
+    )
+
+    failed = doc.mark_failed(
+        "Traceback (most recent call last):\n  File 'x.py', line 12\nKeyError: 'raw'"
+    )
+    assert failed.status == DocumentStatus.FAILED
+    # Solo conserva la primera línea segura truncada (sin volcado de traza)
+    assert failed.failure_reason == "Traceback (most recent call last):"
+    assert "failed_at" in failed.technical_metadata
+
+    # Reintento controlado: transiciona de FAILED a PROCESSING incrementando retry_count
+    retried = failed.retry_processing()
+    assert retried.status == DocumentStatus.PROCESSING
+    assert retried.failure_reason is None
+    assert retried.technical_metadata.get("retry_count") == 1
+    assert "last_retry_at" in retried.technical_metadata
+
+
+def test_document_forbidden_backward_transitions():
+    """Valida que transiciones retrógradas prohibidas arrojen error (CDM-37)."""
+    doc = Document.create(
+        workspace_id=uuid4(),
+        uploaded_by=uuid4(),
+        original_filename="doc.pdf",
+        storage_key="key",
+        content_type="application/pdf",
+        size_bytes=100,
+    )
+
+    uploaded = doc.transition_to(DocumentStatus.UPLOADED)
+    processing = uploaded.transition_to(DocumentStatus.PROCESSING)
+    ready = processing.transition_to(DocumentStatus.READY)
+
+    # READY no puede retroceder a UPLOADED ni a PROCESSING
+    with pytest.raises(InvalidDocumentDataError):
+        ready.transition_to(DocumentStatus.PROCESSING)
+
+    with pytest.raises(InvalidDocumentDataError):
+        ready.transition_to(DocumentStatus.UPLOADED)
+
+    # FAILED no puede retroceder a PENDING_UPLOAD
+    failed = processing.mark_failed("Error")
+    with pytest.raises(InvalidDocumentDataError):
+        failed.transition_to(DocumentStatus.PENDING_UPLOAD)

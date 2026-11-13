@@ -221,4 +221,38 @@ describe('DocumentService', () => {
     expect(errorState.status).toBe('error');
     expect(errorState.error).toContain('supera el tamaño máximo');
   });
+
+  it('listDocuments envía GET con parámetros de paginación y filtro de estado', () => {
+    service.listDocuments('ws-1', 10, 20, 'READY').subscribe((res) => {
+      expect(res.items.length).toBe(1);
+      expect(res.total).toBe(1);
+    });
+
+    const req = http.expectOne('/api/v1/workspaces/ws-1/documents?limit=10&offset=20&status=READY');
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      data: [mockDocument],
+      pagination: { total: 1, limit: 10, offset: 20, has_next: false, has_prev: false },
+    });
+  });
+
+  it('getDocument envía GET por ID y retorna el documento', () => {
+    service.getDocument('ws-1', 'doc-456').subscribe((doc) => {
+      expect(doc.id).toBe('doc-456');
+    });
+
+    const req = http.expectOne('/api/v1/workspaces/ws-1/documents/doc-456');
+    expect(req.request.method).toBe('GET');
+    req.flush({ data: mockDocument });
+  });
+
+  it('deleteDocument envía DELETE y retorna mensaje de éxito', () => {
+    service.deleteDocument('ws-1', 'doc-456').subscribe((res) => {
+      expect(res.message).toBe('Documento eliminado');
+    });
+
+    const req = http.expectOne('/api/v1/workspaces/ws-1/documents/doc-456');
+    expect(req.request.method).toBe('DELETE');
+    req.flush({ data: { message: 'Documento eliminado' } });
+  });
 });
