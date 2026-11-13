@@ -18,6 +18,7 @@ from cdm.adapters.outbound.persistence.engine import (
     unit_of_work,
 )
 from cdm.adapters.outbound.persistence.repositories import SqlAlchemyDocumentRepository
+from cdm.adapters.outbound.storage.s3_storage import S3StorageAdapter
 from cdm.application.use_cases.process_document_event import (
     ProcessDocumentEventUseCase,
 )
@@ -85,11 +86,17 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, list[dict[str, str
 
     engine = create_db_engine(settings)
     session_factory = create_session_factory(engine)
+    storage = S3StorageAdapter(
+        bucket_name=settings.s3_bucket_name,
+        region=settings.s3_region,
+        endpoint_url=settings.s3_endpoint_url,
+    )
 
     with unit_of_work(session_factory) as session:
         doc_repo = SqlAlchemyDocumentRepository(session)
         use_case = ProcessDocumentEventUseCase(
             document_repo=doc_repo,
-            expected_bucket_name=getattr(settings, "documents_bucket_name", None),
+            storage=storage,
+            expected_bucket_name=settings.s3_bucket_name,
         )
         return process_sqs_event(event=event, use_case=use_case)
