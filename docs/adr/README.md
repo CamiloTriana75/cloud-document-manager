@@ -10,5 +10,6 @@
 | [0006](0006-multi-tenant-y-usuarios.md) | Estrategia multi-tenant y provisión de usuarios | Aceptado |
 | [0007](0007-region-aws.md) | Región AWS `us-east-1` | Aceptado |
 | [0008](0008-postgres-local-vs-rds.md) | PostgreSQL local para el MVP; RDS diferido | Aceptado |
+| [0009](0009-escena-3d-three-js.md) | Escena 3D del frontend con three.js cargado bajo demanda | Aceptado |
 
 Plantilla mínima por ADR: contexto, opciones consideradas, decisión, consecuencias, riesgos, fecha (AGENTS.md §21).
