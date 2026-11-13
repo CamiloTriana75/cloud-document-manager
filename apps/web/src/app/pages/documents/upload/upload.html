@@ -206,7 +206,11 @@
           <button type="button" class="btn btn-primary" (click)="resetForm()">
             Subir otro documento
           </button>
-          <a [routerLink]="['/workspaces', workspaceId, 'documents']" class="btn btn-secondary">
+          <a
+            [routerLink]="['/workspaces', workspaceId, 'documents']"
+            [queryParams]="{ docId: uploadState.document.id }"
+            class="btn btn-secondary"
+          >
             Ver en el catálogo
           </a>
         </div>

@@ -2,6 +2,7 @@ import {
   Component,
   computed,
   DestroyRef,
+  HostListener,
   inject,
   OnInit,
   signal,
@@ -102,6 +103,7 @@ export class DocumentCatalogComponent implements OnInit {
 
   // Acción de descarga en progreso
   readonly downloadingDocId = signal<string | null>(null);
+  readonly actionErrorMessage = signal<string | null>(null);
 
   readonly canDelete = computed(() => {
     const role = this.workspaceService.activeWorkspace()?.role;
@@ -226,6 +228,19 @@ export class DocumentCatalogComponent implements OnInit {
 
     this.workspaceId.set(targetWsId);
     this.loadDocuments();
+
+    const targetDocId = this.route.snapshot.queryParamMap.get('docId');
+    if (targetDocId) {
+      this.documentService
+        .getDocument(targetWsId, targetDocId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (doc) => this.openDetail(doc),
+          error: () => {
+            // Documento no encontrado o no accesible
+          },
+        });
+    }
 
     // Auto-polling cada 5 segundos si hay documentos en procesamiento
     const intervalId = setInterval(() => {
@@ -395,7 +410,7 @@ export class DocumentCatalogComponent implements OnInit {
         },
         error: (err) => {
           this.downloadingDocId.set(null);
-          alert(
+          this.actionErrorMessage.set(
             err?.error?.error?.message ||
               'No se pudo generar la URL de descarga del documento.'
           );
@@ -407,6 +422,7 @@ export class DocumentCatalogComponent implements OnInit {
     if (doc.status !== 'FAILED') return;
 
     this.retryingDocId.set(doc.id);
+    this.actionErrorMessage.set(null);
     this.documentService
       .retryDocument(this.workspaceId(), doc.id)
       .pipe(takeUntil(this.destroy$))
@@ -422,7 +438,7 @@ export class DocumentCatalogComponent implements OnInit {
         },
         error: (err) => {
           this.retryingDocId.set(null);
-          alert(
+          this.actionErrorMessage.set(
             err?.error?.error?.message ||
               'No se pudo reintentar el procesamiento del documento.'
           );
@@ -431,7 +447,13 @@ export class DocumentCatalogComponent implements OnInit {
   }
 
   confirmDelete(doc: DocumentItem): void {
+    this.actionErrorMessage.set(null);
     this.documentToDelete.set(doc);
+  }
+
+  confirmDeleteFromDetail(doc: DocumentItem): void {
+    this.closeDetail();
+    this.confirmDelete(doc);
   }
 
   cancelDelete(): void {
@@ -443,6 +465,7 @@ export class DocumentCatalogComponent implements OnInit {
     if (!doc) return;
 
     this.isDeleting.set(true);
+    this.actionErrorMessage.set(null);
     this.documentService
       .deleteDocument(this.workspaceId(), doc.id)
       .pipe(takeUntil(this.destroy$))
@@ -457,12 +480,21 @@ export class DocumentCatalogComponent implements OnInit {
         },
         error: (err) => {
           this.isDeleting.set(false);
-          alert(
+          this.actionErrorMessage.set(
             err?.error?.error?.message ||
               'No se pudo eliminar el documento seleccionado.'
           );
         },
       });
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.documentToDelete()) {
+      this.cancelDelete();
+    } else if (this.isDetailOpen()) {
+      this.closeDetail();
+    }
   }
 
   formatBytes(bytes: number): string {
