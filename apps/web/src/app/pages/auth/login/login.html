@@ -12,6 +12,13 @@
       </div>
     }
 
+    @if (successMessage()) {
+      <div class="alert alert-success" role="status" aria-live="polite">
+        <span class="alert-icon" aria-hidden="true">✅</span>
+        <span>{{ successMessage() }}</span>
+      </div>
+    }
+
     <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
       <div class="form-group">
         <label for="email" class="form-label">Correo electrónico</label>
@@ -68,10 +75,6 @@
       <p>
         ¿No tienes una cuenta?
         <a routerLink="/auth/register" class="link">Crear cuenta</a>
-      </p>
-      <p class="mt-2">
-        ¿Tienes un código de verificación pendiente?
-        <a routerLink="/auth/confirm" class="link">Confirmar cuenta</a>
       </p>
     </div>
   </div>
