@@ -75,9 +75,17 @@ export class RegisterComponent {
       })
       .subscribe({
         next: () => {
-          this.isSubmitting.set(false);
-          this.router.navigate(['/auth/confirm'], {
-            queryParams: { email },
+          this.authService.login({ email: email!, password: password! }).subscribe({
+            next: () => {
+              this.isSubmitting.set(false);
+              this.router.navigate(['/workspaces']);
+            },
+            error: () => {
+              this.isSubmitting.set(false);
+              this.router.navigate(['/auth/login'], {
+                queryParams: { registered: 'true', email },
+              });
+            },
           });
         },
         error: (err) => {
