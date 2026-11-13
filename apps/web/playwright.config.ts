@@ -12,10 +12,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
-  workers: process.env['CI'] ? 1 : undefined,
+  // En local, más de 2 workers saturan el dev server y vuelven intermitente el login E2E.
+  workers: process.env['CI'] ? 1 : 2,
   reporter: process.env['CI'] ? 'github' : 'list',
   use: {
     baseURL,
+    // Un solo fotograma de la escena 3D: evita saturar la CPU (SwiftShader) en corridas paralelas.
+    contextOptions: { reducedMotion: 'reduce' },
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

@@ -1,59 +1,38 @@
-# Web
+# CDM — Web (Angular)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 22.2.6.
+SPA de Cloud Document Manager: Angular 22 standalone y zoneless, señales, Vitest y Playwright. Gestor de paquetes: **pnpm 12.14.0** (`packageManager` en `package.json`).
 
-## Development server
+## Comandos
 
-To start a local development server, run:
+| Comando | Qué hace |
+|---|---|
+| `pnpm start` | Dev server en `http://localhost:4200` con proxy de `/api` y `/health` al backend local (`proxy.conf.json`). |
+| `pnpm build` | Build de producción (presupuestos: inicial 500 kB aviso / 1 MB error). |
+| `pnpm lint` | angular-eslint, incluidas reglas de accesibilidad de plantillas. |
+| `pnpm test` | Pruebas unitarias con Vitest (`ng test`). |
+| `pnpm run check:contrast` | Verifica el contraste WCAG AA de los tokens de color (`scripts/check-contrast.mjs`). |
+| `pnpm e2e` | Journeys E2E con Playwright y API simulada (`e2e/fixtures/mock-api.ts`). `E2E_PORT=4310 pnpm e2e` levanta su propio servidor si ya tienes otro `ng serve` en 4200. |
 
-```bash
-ng serve
+## Estructura
+
+```
+src/
+├── styles.css                 importa las capas globales
+├── styles/                    fonts · tokens · base · components (design system)
+└── app/
+    ├── app.*                  shell: header, navegación, drawer móvil
+    ├── layout/                selector de workspace y menú de usuario
+    ├── core/                  servicios de API, auth, documentos (estado, estadísticas, cola de carga), workspaces
+    ├── shared/format/         formato de bytes, fechas e IDs (es-CO)
+    ├── shared/ui/             componentes compartidos (icono, diálogo, menú, carpetas, KPIs, escena 3D…)
+    └── pages/                 inicio, documentos (dashboard y carga), workspaces, autenticación
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+## Diseño
 
-## Code scaffolding
+- Sistema visual y API de componentes: [`docs/architecture/design-system.md`](../../docs/architecture/design-system.md).
+- Spec del rediseño: [`docs/superpowers/specs/2026-11-13-ui-redesign-design.md`](../../docs/superpowers/specs/2026-11-13-ui-redesign-design.md).
+- Escena 3D (three.js diferido): [ADR-0009](../../docs/adr/0009-escena-3d-three-js.md).
+- Contexto de producto para herramientas de diseño: [`PRODUCT.md`](PRODUCT.md).
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
-
-```bash
-ng generate component component-name
-```
-
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Reglas: solo tema oscuro; el naranja es relleno de acción primaria y nunca texto pequeño; Geist Mono solo para datos; todo movimiento respeta `prefers-reduced-motion`; la UI refleja permisos pero la autorización la decide siempre el backend.

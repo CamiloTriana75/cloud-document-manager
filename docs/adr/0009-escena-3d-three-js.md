@@ -8,7 +8,7 @@ El rediseño visual aprobado (`docs/superpowers/specs/2026-11-13-ui-redesign-des
 
 ## Opciones consideradas
 
-1. **three.js cargado con `import()` dinámico** — geometría instanciada, materiales PBR y entorno de iluminación con poco código propio; chunk diferido de ~150 kB comprimido.
+1. **three.js cargado con `import()` dinámico** — geometría instanciada, materiales PBR y entorno de iluminación con poco código propio; chunk diferido de ~113 kB comprimido (550 kB sin comprimir, medido en el build).
 2. **CSS 3D sin dependencias** — anillos con transformaciones 3D y gradientes; sin iluminación ni reflejos reales, el resultado se ve plano frente a la referencia. Descartado.
 3. **Shader WebGL propio (raymarching de SDF)** — cero dependencias y control total, pero más difícil de mantener y con coste de GPU por píxel. Descartado.
 4. **Video o imagen pre-renderizada** — barato en runtime, pero exige producir y versionar el asset y no se adapta al tamaño ni al movimiento reducido. Descartado.
@@ -22,7 +22,7 @@ El rediseño visual aprobado (`docs/superpowers/specs/2026-11-13-ui-redesign-des
 
 ## Consecuencias
 
-- Primera visita a una pantalla con escena: descarga adicional diferida (~150 kB comprimidos) que no bloquea la interacción; el fondo CSS cubre la espera y se funde con la escena al primer fotograma.
+- Primera visita a una pantalla con escena: descarga adicional diferida (~113 kB comprimidos) que no bloquea la interacción; el fondo CSS cubre la espera y se funde con la escena al primer fotograma.
 - Las pruebas unitarias (jsdom, sin WebGL) cubren el respaldo y la geometría; la escena real se verifica con capturas de Playwright en Chromium.
 
 ## Riesgos

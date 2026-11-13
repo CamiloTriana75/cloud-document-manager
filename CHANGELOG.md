@@ -7,6 +7,28 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
 ---
 
+## [Unreleased]
+
+### Cambiado
+- **Rediseño visual del frontend (CDM-121, CDM-107, CDM-108):** tema oscuro verde-azulado con acento naranja, tipografía Geist servida por la app, design system por capas (`src/styles/`) y componentes compartidos documentados en `docs/architecture/design-system.md`.
+- **Dashboard de documentos:** pestañas-carpeta por estado con conteos reales, KPIs calculados con la API existente, catálogo con búsqueda diferida y cancelación, panel de Actividad en vivo y drawer de detalle con línea de tiempo.
+- **Shell:** navegación central, selector de workspace y menú de usuario accesibles; drawer móvil con `<dialog>` nativo.
+- **Inicio, miembros, creación de workspace, login y registro** rediseñados; tras crear un workspace se abre su catálogo.
+
+### Añadido
+- Escena 3D procedural con three.js cargado bajo demanda (ADR-0009), con respaldo CSS y soporte de `prefers-reduced-motion`.
+- Carga de varios archivos con cola, progreso, cancelación y reintento por archivo (AGENTS.md §9).
+- `pnpm run check:contrast`: verificación WCAG AA de los tokens, ejecutada en CI.
+- `E2E_PORT` para correr Playwright junto a otro `ng serve`.
+
+### Corregido
+- Filtro por tipo enviaba prefijos MIME que el backend compara por igualdad (devolvía 0 resultados).
+- Búsqueda del catálogo sin debounce ni cancelación (respuestas fuera de orden).
+- `<main>` anidado en autenticación, diálogos sin gestión de foco, emojis como iconos.
+- El registro navegaba a una ruta inexistente (`/workspaces`).
+
+---
+
 ## [0.1.0] - 2026-11-13
 
 ### Añadido
