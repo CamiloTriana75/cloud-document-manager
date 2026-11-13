@@ -12,6 +12,7 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 
 import {
+  DocumentFilterOptions,
   DocumentItem,
   DocumentStatus,
 } from '../../../core/documents/document.models';
@@ -19,6 +20,14 @@ import { DocumentService } from '../../../core/documents/document.service';
 import { WorkspaceService } from '../../../core/workspaces/workspace.service';
 
 export type StatusFilterOption = 'ALL' | DocumentStatus;
+
+export type SortColumn =
+  | 'original_filename'
+  | 'content_type'
+  | 'size_bytes'
+  | 'created_at'
+  | 'status';
+export type SortDirection = 'asc' | 'desc';
 
 export interface MimeOption {
   label: string;
@@ -144,6 +153,48 @@ export class DocumentCatalogComponent implements OnInit {
     return result;
   });
 
+  // Ordenamiento interactivo por columna (CDM-46)
+  readonly sortColumn = signal<SortColumn>('created_at');
+  readonly sortDirection = signal<SortDirection>('desc');
+
+  toggleSort(column: SortColumn): void {
+    if (this.sortColumn() === column) {
+      this.sortDirection.update((dir) => (dir === 'asc' ? 'desc' : 'asc'));
+    } else {
+      this.sortColumn.set(column);
+      this.sortDirection.set('asc');
+    }
+  }
+
+  readonly sortedDocuments = computed(() => {
+    const list = [...this.filteredDocuments()];
+    const col = this.sortColumn();
+    const dir = this.sortDirection();
+
+    return list.sort((a, b) => {
+      let cmp = 0;
+      switch (col) {
+        case 'original_filename':
+          cmp = a.original_filename.localeCompare(b.original_filename);
+          break;
+        case 'content_type':
+          cmp = a.content_type.localeCompare(b.content_type);
+          break;
+        case 'size_bytes':
+          cmp = a.size_bytes - b.size_bytes;
+          break;
+        case 'created_at':
+          cmp =
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          break;
+        case 'status':
+          cmp = a.status.localeCompare(b.status);
+          break;
+      }
+      return dir === 'asc' ? cmp : -cmp;
+    });
+  });
+
   readonly hasActiveFilters = computed(
     () =>
       this.activeFilter() !== 'ALL' ||
@@ -196,9 +247,17 @@ export class DocumentCatalogComponent implements OnInit {
     this.errorMessage.set(null);
 
     const offset = (this.currentPage() - 1) * this.pageSize();
+    const filterOptions: DocumentFilterOptions = {
+      limit: this.pageSize(),
+      offset,
+      status: this.activeFilter() === 'ALL' ? undefined : this.activeFilter(),
+      search: this.searchTerm().trim() || undefined,
+      content_type:
+        this.selectedMime() === 'ALL' ? undefined : this.selectedMime(),
+    };
 
     this.documentService
-      .listDocuments(wsId, this.pageSize(), offset)
+      .listDocuments(wsId, filterOptions)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -227,9 +286,17 @@ export class DocumentCatalogComponent implements OnInit {
     }
 
     const offset = (this.currentPage() - 1) * this.pageSize();
+    const filterOptions: DocumentFilterOptions = {
+      limit: this.pageSize(),
+      offset,
+      status: this.activeFilter() === 'ALL' ? undefined : this.activeFilter(),
+      search: this.searchTerm().trim() || undefined,
+      content_type:
+        this.selectedMime() === 'ALL' ? undefined : this.selectedMime(),
+    };
 
     this.documentService
-      .listDocuments(wsId, this.pageSize(), offset)
+      .listDocuments(wsId, filterOptions)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
@@ -245,19 +312,27 @@ export class DocumentCatalogComponent implements OnInit {
 
   setFilter(filter: StatusFilterOption): void {
     this.activeFilter.set(filter);
+    this.currentPage.set(1);
+    this.loadDocuments();
   }
 
   onSearchChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.searchTerm.set(input.value || '');
+    this.currentPage.set(1);
+    this.loadDocuments();
   }
 
   clearSearch(): void {
     this.searchTerm.set('');
+    this.currentPage.set(1);
+    this.loadDocuments();
   }
 
   setMimeFilter(mime: string): void {
     this.selectedMime.set(mime);
+    this.currentPage.set(1);
+    this.loadDocuments();
   }
 
   resetAllFilters(): void {

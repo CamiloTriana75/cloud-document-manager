@@ -120,7 +120,10 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
 
   it('debe crearse correctamente y listar los documentos del espacio activo', () => {
     expect(component).toBeTruthy();
-    expect(mockDocumentService.listDocuments).toHaveBeenCalledWith('ws-123', 50, 0);
+    expect(mockDocumentService.listDocuments).toHaveBeenCalledWith(
+      'ws-123',
+      expect.objectContaining({ limit: 50, offset: 0 })
+    );
     expect(component.documents().length).toBe(3);
 
     const compiled = fixture.nativeElement as HTMLElement;
@@ -266,5 +269,76 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
     component.setPageSize(25);
     expect(component.pageSize()).toBe(25);
     expect(component.totalPages()).toBe(5);
+  });
+
+  it('permite ordenar por columna (nombre, tamaño, fecha) en asc y desc (CDM-46)', () => {
+    // Ordenar por nombre ascendente
+    component.toggleSort('original_filename');
+    expect(component.sortColumn()).toBe('original_filename');
+    expect(component.sortDirection()).toBe('asc');
+    expect(component.sortedDocuments()[0].original_filename).toBe('contrato.pdf');
+    expect(component.sortedDocuments()[2].original_filename).toBe('video.mp4');
+
+    // Toggle a descendente
+    component.toggleSort('original_filename');
+    expect(component.sortDirection()).toBe('desc');
+    expect(component.sortedDocuments()[0].original_filename).toBe('video.mp4');
+    expect(component.sortedDocuments()[2].original_filename).toBe('contrato.pdf');
+
+    // Ordenar por tamaño
+    component.toggleSort('size_bytes');
+    expect(component.sortColumn()).toBe('size_bytes');
+    expect(component.sortDirection()).toBe('asc');
+    expect(component.sortedDocuments()[0].size_bytes).toBe(2048);
+  });
+
+  it('no muestra acciones no permitidas según el rol activo (ADR-0001 / CDM-46)', () => {
+    // Para VIEWER: no puede subir, no puede eliminar, no puede reintentar
+    mockWorkspaceService.activeWorkspace.mockReturnValue({
+      id: 'ws-123',
+      name: 'Mi Workspace',
+      slug: 'mi-workspace',
+      role: 'VIEWER',
+    });
+
+    const viewerFixture = TestBed.createComponent(DocumentCatalogComponent);
+    viewerFixture.detectChanges();
+    const viewerComp = viewerFixture.componentInstance;
+
+    expect(viewerComp.canUpload()).toBe(false);
+    expect(viewerComp.canDelete()).toBe(false);
+    expect(viewerComp.canRetry()).toBe(false);
+    expect(viewerFixture.nativeElement.querySelector('.role-notice-banner')).toBeTruthy();
+    expect(viewerFixture.nativeElement.querySelector('.btn-delete')).toBeNull();
+
+    // Para MEMBER: puede subir, pero no puede eliminar ni reintentar
+    mockWorkspaceService.activeWorkspace.mockReturnValue({
+      id: 'ws-123',
+      name: 'Mi Workspace',
+      slug: 'mi-workspace',
+      role: 'MEMBER',
+    });
+    const memberFixture = TestBed.createComponent(DocumentCatalogComponent);
+    memberFixture.detectChanges();
+    const memberComp = memberFixture.componentInstance;
+
+    expect(memberComp.canUpload()).toBe(true);
+    expect(memberComp.canDelete()).toBe(false);
+    expect(memberComp.canRetry()).toBe(false);
+
+    // Para EDITOR: puede subir y eliminar, pero no reintentar
+    mockWorkspaceService.activeWorkspace.mockReturnValue({
+      id: 'ws-123',
+      name: 'Mi Workspace',
+      slug: 'mi-workspace',
+      role: 'EDITOR',
+    });
+    const editorFixture = TestBed.createComponent(DocumentCatalogComponent);
+    editorFixture.detectChanges();
+    const editorComp = editorFixture.componentInstance;
+
+    expect(editorComp.canUpload()).toBe(true);
+    expect(editorComp.canDelete()).toBe(true);
+    expect(editorComp.canRetry()).toBe(false);
   });
 });

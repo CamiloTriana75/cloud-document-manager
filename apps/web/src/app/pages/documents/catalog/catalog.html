@@ -63,6 +63,18 @@
     </div>
   </header>
 
+  <!-- Notificación de rol en UI (ADR-0001: VIEWER es solo lectura) -->
+  @if (workspaceService.activeWorkspace()?.role === 'VIEWER') {
+    <div class="role-notice-banner" role="status">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <span>Navegando con rol <strong>VIEWER (Solo lectura)</strong>. Las acciones de subida y eliminación están deshabilitadas.</span>
+    </div>
+  }
+
   <!-- Barra de Filtros y Búsqueda (CDM-42) -->
   <div class="filters-panel">
     <div class="search-box">
@@ -230,15 +242,83 @@
       <table class="documents-table" aria-label="Lista de documentos del espacio">
         <thead>
           <tr>
-            <th scope="col">Documento</th>
-            <th scope="col">Estado</th>
-            <th scope="col">Tamaño</th>
-            <th scope="col">Última actualización</th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('original_filename')"
+                [attr.aria-sort]="sortColumn() === 'original_filename' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por nombre de documento"
+              >
+                <span>Documento</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'original_filename') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('status')"
+                [attr.aria-sort]="sortColumn() === 'status' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por estado"
+              >
+                <span>Estado</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'status') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('size_bytes')"
+                [attr.aria-sort]="sortColumn() === 'size_bytes' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por tamaño"
+              >
+                <span>Tamaño</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'size_bytes') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('created_at')"
+                [attr.aria-sort]="sortColumn() === 'created_at' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por última actualización"
+              >
+                <span>Última actualización</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'created_at') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
             <th scope="col" class="text-right">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          @for (doc of filteredDocuments(); track doc.id) {
+          @for (doc of sortedDocuments(); track doc.id) {
             <tr class="document-row" [class.row-failed]="doc.status === 'FAILED'">
               <td class="col-filename">
                 <div class="filename-wrapper">

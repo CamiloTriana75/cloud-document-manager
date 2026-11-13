@@ -301,6 +301,49 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.th-sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--duration-fast) var(--easing);
+}
+
+.th-sort-btn:hover {
+  color: var(--color-primary);
+}
+
+.sort-icon {
+  font-size: 0.7rem;
+  color: var(--color-text-secondary);
+}
+
+.th-sort-btn:hover .sort-icon {
+  color: var(--color-primary);
+}
+
+.role-notice-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: #f1f5f9;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-4);
+}
+
 .documents-table td {
   padding: var(--space-4);
   border-bottom: 1px solid var(--color-border);
