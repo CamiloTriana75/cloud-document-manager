@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from cdm.adapters.inbound.http.auth import get_current_user
 from cdm.adapters.outbound.persistence.repositories import (
+    SqlAlchemyAuditRepository,
     SqlAlchemyDocumentRepository,
     SqlAlchemyMembershipRepository,
     SqlAlchemyUserRepository,
@@ -25,6 +26,7 @@ from cdm.adapters.outbound.persistence.sql_upload_session_repository import (
     SqlAlchemyUploadSessionRepository,
 )
 from cdm.adapters.outbound.storage.s3_storage import S3StorageAdapter
+from cdm.application.ports.audit_repository import AuditRepositoryPort
 from cdm.application.ports.storage import StoragePort
 from cdm.application.use_cases.documents import (
     AuthorizeDocumentDownloadUseCase,
@@ -276,3 +278,9 @@ def get_retry_document_processing_use_case(
         document_repo=SqlAlchemyDocumentRepository(session),
         storage=storage,
     )
+
+
+def get_audit_repository(
+    session: Annotated[Session, Depends(get_db_session)],
+) -> AuditRepositoryPort:
+    return SqlAlchemyAuditRepository(session)
