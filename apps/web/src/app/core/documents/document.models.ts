@@ -24,6 +24,7 @@ export interface DocumentItem {
   created_at: string;
   updated_at: string;
   failure_reason?: string | null;
+  retry_count?: number;
 }
 
 export interface UploadSessionRequest {

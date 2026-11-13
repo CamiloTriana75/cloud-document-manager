@@ -48,6 +48,7 @@ class DocumentDetailDTO:
     created_at: datetime
     updated_at: datetime
     failure_reason: str | None = None
+    retry_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ def _to_dto(doc: Document) -> DocumentDetailDTO:
         created_at=doc.created_at,
         updated_at=doc.updated_at,
         failure_reason=doc.failure_reason,
+        retry_count=doc.retry_count,
     )
 
 
@@ -362,5 +364,56 @@ class CompleteDocumentUploadUseCase:
 
         completed_session = session.mark_completed()
         self._upload_session_repo.save(completed_session)
+
+        return _to_dto(saved_doc)
+
+
+class RetryDocumentProcessingUseCase:
+    """Caso de uso: Reintento controlado de procesamiento de un documento en estado FAILED (CDM-39).
+
+    Reglas de negocio y seguridad (AGENTS.md §3.2, §12):
+    1. Solo ADMIN u OWNER pueden ejecutar el reintento manual (ADR-0001).
+    2. Búsqueda y aislamiento estricto por workspace_id (anti-IDOR).
+    3. El documento debe existir, no estar eliminado y encontrarse en estado FAILED.
+    4. Acotado por MAX_DOCUMENT_RETRIES (3 reintentos máximo).
+    5. Reinicia el estado de forma consistente a PROCESSING, incrementa el contador
+       y limpia la razón de fallo previa.
+    """
+
+    def __init__(
+        self,
+        document_repo: DocumentRepositoryPort,
+        storage: StoragePort | None = None,
+    ) -> None:
+        self._doc_repo = document_repo
+        self._storage = storage
+
+    def execute(
+        self,
+        tenant: TenantContext,
+        document_id: UUID,
+    ) -> DocumentDetailDTO:
+        # 1. Autorización estricta: Solo ADMIN y OWNER (CDM-39 / ADR-0001)
+        tenant.require_role(WorkspaceRole.ADMIN)
+
+        # 2. Obtención segura filtrada por tenant (anti-IDOR)
+        document = self._doc_repo.get_by_id(
+            workspace_id=tenant.workspace_id,
+            document_id=document_id,
+        )
+        if document is None or document.is_deleted:
+            raise DocumentNotFoundError("El documento solicitado no existe o no tiene acceso a él.")
+
+        # 3. Transición de reintento controlada (valida estado FAILED y max_retries)
+        retried_doc = document.retry_processing()
+        saved_doc = self._doc_repo.save(retried_doc)
+
+        logger.info(
+            "Reintento manual ejecutado: ws=%s doc=%s retry_count=%s user=%s",
+            tenant.workspace_id,
+            document_id,
+            saved_doc.retry_count,
+            tenant.user_id,
+        )
 
         return _to_dto(saved_doc)

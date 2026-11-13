@@ -20,6 +20,7 @@ from cdm.adapters.inbound.http.dependencies import (
     get_delete_document_use_case,
     get_document_detail_use_case,
     get_list_documents_use_case,
+    get_retry_document_processing_use_case,
     get_tenant_context,
 )
 from cdm.adapters.inbound.http.errors import ERROR_RESPONSES
@@ -31,6 +32,7 @@ from cdm.application.use_cases.documents import (
     DeleteDocumentUseCase,
     GetDocumentDetailUseCase,
     ListDocumentsUseCase,
+    RetryDocumentProcessingUseCase,
 )
 from cdm.domain.document import DocumentStatus
 from cdm.domain.tenant import TenantContext
@@ -102,6 +104,7 @@ class DocumentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     failure_reason: str | None = None
+    retry_count: int = 0
 
 
 class DownloadUrlRequest(BaseModel):
@@ -240,6 +243,7 @@ def create_document(
             created_at=doc.created_at,
             updated_at=doc.updated_at,
             failure_reason=doc.failure_reason,
+            retry_count=doc.retry_count,
         )
     )
 
@@ -275,6 +279,7 @@ def get_document_detail(
             created_at=doc.created_at,
             updated_at=doc.updated_at,
             failure_reason=doc.failure_reason,
+            retry_count=doc.retry_count,
         )
     )
 
@@ -360,5 +365,44 @@ def complete_document_upload(
             created_at=doc.created_at,
             updated_at=doc.updated_at,
             failure_reason=doc.failure_reason,
+            retry_count=doc.retry_count,
+        )
+    )
+
+
+@router.post(
+    "/{document_id}/retry",
+    response_model=EnvelopeDocument,
+    summary="Reintentar procesamiento de documento fallido",
+    description=(
+        "Permite reiniciar de forma controlada el procesamiento de un documento en estado FAILED. "
+        "Requiere rol ADMIN o OWNER (ADR-0001, CDM-39). Acotado a un máximo de 3 reintentos."
+    ),
+    responses=ERROR_RESPONSES,
+)
+def retry_document_processing(
+    document_id: Annotated[UUID, Path(description="Identificador del documento a reintentar")],
+    tenant: Annotated[TenantContext, Depends(get_tenant_context)],
+    use_case: Annotated[
+        RetryDocumentProcessingUseCase, Depends(get_retry_document_processing_use_case)
+    ],
+) -> EnvelopeDocument:
+    doc = use_case.execute(tenant=tenant, document_id=document_id)
+    return EnvelopeDocument(
+        data=DocumentResponse(
+            id=doc.id,
+            workspace_id=doc.workspace_id,
+            uploaded_by=doc.uploaded_by,
+            original_filename=doc.original_filename,
+            storage_key=doc.storage_key,
+            content_type=doc.content_type,
+            size_bytes=doc.size_bytes,
+            checksum_sha256=doc.checksum_sha256,
+            status=doc.status,
+            technical_metadata=doc.technical_metadata,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+            failure_reason=doc.failure_reason,
+            retry_count=doc.retry_count,
         )
     )

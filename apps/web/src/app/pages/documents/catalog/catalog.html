@@ -241,6 +241,24 @@
                     </button>
                   }
 
+                  @if (doc.status === 'FAILED' && canRetry()) {
+                    <button
+                      type="button"
+                      class="btn-action btn-retry-doc"
+                      (click)="retryDocument(doc)"
+                      [disabled]="retryingDocId() === doc.id"
+                      aria-label="Reintentar procesamiento"
+                      title="Reintentar procesamiento del documento"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                      </svg>
+                      <span>{{ retryingDocId() === doc.id ? 'Reintentando...' : 'Reintentar' }}</span>
+                    </button>
+                  }
+
                   <button
                     type="button"
                     class="btn-action btn-detail"
@@ -337,6 +355,12 @@
               <span class="detail-label">Clave de Almacenamiento S3</span>
               <span class="detail-value font-mono text-truncate" [title]="doc.storage_key">{{ doc.storage_key }}</span>
             </div>
+            @if (doc.retry_count !== undefined && doc.retry_count > 0) {
+              <div class="detail-item">
+                <span class="detail-label">Reintentos Realizados</span>
+                <span class="detail-value">{{ doc.retry_count }} / 3</span>
+              </div>
+            }
           </div>
 
           @if (doc.technical_metadata && (doc.technical_metadata | keyvalue).length > 0) {
@@ -363,6 +387,16 @@
               [disabled]="downloadingDocId() === doc.id"
             >
               Descargar archivo
+            </button>
+          }
+          @if (doc.status === 'FAILED' && canRetry()) {
+            <button
+              type="button"
+              class="btn-primary btn-retry-action"
+              (click)="retryDocument(doc)"
+              [disabled]="retryingDocId() === doc.id"
+            >
+              {{ retryingDocId() === doc.id ? 'Reintentando...' : 'Reintentar Procesamiento' }}
             </button>
           }
           <button type="button" class="btn-secondary" (click)="closeDetail()">

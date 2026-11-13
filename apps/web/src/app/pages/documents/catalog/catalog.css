@@ -580,3 +580,22 @@
   color: var(--color-text);
   word-break: break-all;
 }
+
+.btn-retry-doc {
+  background-color: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.btn-retry-doc:hover:not(:disabled) {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.btn-retry-action {
+  background-color: #b91c1c !important;
+}
+
+.btn-retry-action:hover:not(:disabled) {
+  background-color: #991b1b !important;
+}
