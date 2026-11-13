@@ -49,3 +49,27 @@ Reglas de uso:
 | estado sobre su fondo suave (positivo · aviso · peligro · info · acento) | 6.70 · 5.57 · 4.63 · 5.53 · 4.74 | 4.5 |
 | borde de campo / tarjeta · panel | 3.40 · 4.30 | 3 |
 | anillo de foco / lienzo · tarjeta | 9.69 · 6.80 | 3 |
+
+## Componentes compartidos (`src/app/shared/ui/`)
+
+Todos son standalone, `OnPush` y usan `input()`/`output()`.
+
+| Componente | Selector | Entradas / salidas | Accesibilidad |
+|---|---|---|---|
+| Icono | `app-icon` | `name: IconName` (requerido), `size = 18`, `strokeWidth = 1.75` | Decorativo (`aria-hidden`); el control que lo usa lleva el nombre. Registro tipado en `icons.ts` (Lucide, ISC), sin `innerHTML`. |
+| Diálogo | `app-dialog` | `open`, `variant: 'modal' \| 'drawer'`, `label` o `labelledBy`; `(closed)` | `<dialog>` nativo: capa superior, fondo inerte, Escape y clic en el fondo emiten `closed`, devuelve el foco. |
+| Menú | `app-menu` + `[appMenuItem]` | `label` (requerido), `align: 'start' \| 'end'`, `triggerClass`; ítems con `menuRole: 'menuitem' \| 'menuitemradio'` y `menuChecked` | Patrón ARIA menu button: flechas, Home/End, Escape devuelve foco, Tab cierra. Popover API cuando existe. |
+| Pestañas-carpeta | `app-folder-tabs` | `tabs: FolderTab[]`, `active`, `controls`, `label`; `(activeChange)` | Patrón tabs con activación manual y roving tabindex. |
+| KPI | `app-kpi-card` | `label`, `value`, `unit`, `caption`, `captionTone`, `highlighted`, `loading`, `actionLabel`; `(action)`; slot `[kpiVisual]` | Título `h3`; `aria-busy` mientras carga. |
+| Barra segmentada | `app-segmented-bar` | `segments: BarSegment[]`, `label` | `role="img"` con el desglose en porcentajes. |
+| Sparkline | `app-sparkline` | `points: number[]`, `label`, `tone` | `role="img"` con etiqueta; sin `url(#id)` (compatible con `<base href>`). |
+| Escalera de rol | `app-role-ladder` | `role: WorkspaceRole` | `role="img"`: "Rol EDITOR, nivel 3 de 5". |
+| Estado de documento | `app-status-badge` | `status: DocumentStatus` | Etiqueta textual + `aria-label`; puntos de avance animados solo en estados en curso. Clases `doc-status-<estado>` estables para E2E. |
+| Rol | `app-role-badge` | `role: WorkspaceRole` | `aria-label` "Rol de usuario: …"; clases `role-<rol>`. |
+| Alerta | `app-alert` | `type: 'info' \| 'success' \| 'warning' \| 'danger'`, `dismissible`; `(dismiss)` | `role="status"` o `alert` según gravedad; `aria-live` asertivo en peligro. |
+| Estado vacío | `app-empty-state` | `icon`, `title` (requerido), `description`; acciones proyectadas | Título `h3`. |
+| Avatar | `app-avatar` | `name` (requerido), `size = 32` | Decorativo; el nombre se muestra como texto. |
+| Spinner | `app-spinner` | `size`, `label` | `role="status"` con texto oculto. Para contenido que carga se usa `.skeleton`. |
+| Error de campo | `app-form-error` | `message`, `id` | `role="alert"`; el control lo referencia con `aria-describedby`. |
+
+Utilidades de formato (`src/app/shared/format/`): `formatBytes`, `formatDateTime`, `formatDate`, `formatRelativeTime`, `shortId` y los pipes `bytes`, `dateTime`, `relativeTime` (es-CO). Metadatos de estado de documento, carpetas y tipos MIME exactos: `core/documents/document-status.ts`.

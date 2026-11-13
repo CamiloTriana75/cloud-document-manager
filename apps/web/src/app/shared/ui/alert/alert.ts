@@ -1,113 +1,92 @@
-import { CommonModule } from '@angular/common';
-import { Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+
+import { IconComponent } from '../icon/icon';
+import { IconName } from '../icon/icons';
 
 export type AlertType = 'info' | 'success' | 'warning' | 'danger';
 
+const ALERT_ICON: Readonly<Record<AlertType, IconName>> = {
+  info: 'info',
+  success: 'check-circle',
+  warning: 'alert-triangle',
+  danger: 'alert-circle',
+};
+
+/** Mensaje en línea: `status` para información, `alert` para avisos y errores. */
 @Component({
   selector: 'app-alert',
-  standalone: true,
-  imports: [CommonModule],
+  imports: [IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
       class="alert alert-{{ type() }}"
       [attr.role]="type() === 'danger' || type() === 'warning' ? 'alert' : 'status'"
       [attr.aria-live]="type() === 'danger' ? 'assertive' : 'polite'"
     >
-      <div class="alert-icon" aria-hidden="true">
-        @switch (type()) {
-          @case ('success') {
-            ✓
-          }
-          @case ('danger') {
-            ✕
-          }
-          @case ('warning') {
-            ⚠
-          }
-          @default {
-            ℹ
-          }
-        }
-      </div>
+      <span class="alert-icon"><app-icon [name]="icon()" [size]="18" /></span>
       <div class="alert-content">
         <ng-content />
       </div>
       @if (dismissible()) {
         <button
           type="button"
-          class="alert-close-btn"
-          (click)="onDismiss()"
+          class="alert-close-btn btn btn--icon btn--sm"
+          (click)="dismiss.emit()"
           aria-label="Cerrar notificación"
         >
-          ✕
+          <app-icon name="x" [size]="16" />
         </button>
       }
     </div>
   `,
-  styles: [
-    `
-      .alert {
-        display: flex;
-        align-items: flex-start;
-        gap: var(--space-3);
-        padding: var(--space-3) var(--space-4);
-        border-radius: var(--radius-sm);
-        border: 1px solid transparent;
-        font-size: var(--font-size-sm);
-        line-height: 1.5;
-        margin-bottom: var(--space-4);
-      }
-      .alert-icon {
-        font-weight: 700;
-        flex-shrink: 0;
-        margin-top: 1px;
-      }
-      .alert-content {
-        flex: 1;
-      }
-      .alert-close-btn {
-        background: transparent;
-        border: none;
-        font-size: 1rem;
-        cursor: pointer;
-        padding: 0 4px;
-        color: inherit;
-        opacity: 0.7;
-        margin-left: var(--space-2);
-        border-radius: var(--radius-sm);
-      }
-      .alert-close-btn:hover {
-        opacity: 1;
-      }
-      .alert-info {
-        background-color: #eff6ff;
-        border-color: #bfdbfe;
-        color: #1e40af;
-      }
-      .alert-success {
-        background-color: var(--color-success-bg);
-        border-color: #86efac;
-        color: var(--color-success);
-      }
-      .alert-warning {
-        background-color: #fefce8;
-        border-color: #fef08a;
-        color: #854d0e;
-      }
-      .alert-danger {
-        background-color: var(--color-danger-bg);
-        border-color: #fca5a5;
-        color: var(--color-danger);
-      }
-    `,
-  ],
+  styles: `
+    :host {
+      display: block;
+    }
+    .alert {
+      --alert-tone: var(--color-info);
+      --alert-soft: var(--color-info-soft);
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid color-mix(in srgb, var(--alert-tone) 28%, transparent);
+      border-radius: var(--radius-md);
+      background: var(--alert-soft);
+      color: var(--color-text);
+      font-size: var(--text-md);
+    }
+    .alert-success {
+      --alert-tone: var(--color-positive);
+      --alert-soft: var(--color-positive-soft);
+    }
+    .alert-warning {
+      --alert-tone: var(--color-warning);
+      --alert-soft: var(--color-warning-soft);
+    }
+    .alert-danger {
+      --alert-tone: var(--color-danger);
+      --alert-soft: var(--color-danger-soft);
+    }
+    .alert-icon {
+      display: inline-flex;
+      margin-top: 1px;
+      color: var(--alert-tone);
+    }
+    .alert-content {
+      flex: 1;
+      min-width: 0;
+      line-height: var(--leading-normal);
+    }
+    .alert-close-btn {
+      margin: -4px -6px -4px 0;
+    }
+  `,
 })
 export class AlertComponent {
   readonly type = input<AlertType>('info');
   readonly dismissible = input<boolean>(false);
   readonly dismiss = output<void>();
 
-  onDismiss(): void {
-    this.dismiss.emit();
-  }
+  protected readonly icon = computed(() => ALERT_ICON[this.type()]);
 }

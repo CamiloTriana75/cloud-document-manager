@@ -15,16 +15,18 @@ describe('StatusBadgeComponent (CDM-48)', () => {
     expect(badge?.classList.contains('doc-status-ready')).toBe(true);
     expect(badge?.textContent?.trim()).toBe('Listo');
     expect(badge?.getAttribute('aria-label')).toBe('Estado del documento: Listo');
-    expect(el.querySelector('.pulse-indicator')).toBeNull();
+    expect(el.querySelectorAll('.status-dots i.is-on').length).toBe(3);
+    expect(el.querySelector('.status-dots.is-live')).toBeNull();
   });
 
-  it('muestra indicador de pulso en estado PROCESSING', () => {
+  it('muestra el indicador en vivo en estado PROCESSING', () => {
     const fixture = TestBed.createComponent(StatusBadgeComponent);
     fixture.componentRef.setInput('status', 'PROCESSING');
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelector('.pulse-indicator')).toBeTruthy();
+    expect(el.querySelector('.status-dots.is-live')).toBeTruthy();
+    expect(el.querySelectorAll('.status-dots i.is-on').length).toBe(2);
     expect(el.textContent).toContain('Procesando');
   });
 
