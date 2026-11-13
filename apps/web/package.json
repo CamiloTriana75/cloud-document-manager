@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "check:contrast": "node scripts/check-contrast.mjs"
   },
   "private": true,
   "packageManager": "pnpm@12.14.0",
