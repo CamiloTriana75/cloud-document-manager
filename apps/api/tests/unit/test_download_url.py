@@ -12,6 +12,7 @@ Criterios de aceptación verificados:
 
 import logging
 from collections.abc import Iterator
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -63,16 +64,32 @@ class InMemoryDocRepo(DocumentRepositoryPort):
         return doc
 
     def list_by_workspace(
-        self, workspace_id: UUID, limit: int = 50, offset: int = 0, include_deleted: bool = False
+        self,
+        workspace_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+        include_deleted: bool = False,
+        status: DocumentStatus | None = None,
+        filters: Any = None,
     ) -> list[Document]:
         return [
             d
             for d in self.docs.values()
-            if d.workspace_id == workspace_id and (include_deleted or not d.is_deleted)
+            if d.workspace_id == workspace_id
+            and (status is None or d.status == status)
+            and (include_deleted or not d.is_deleted)
         ]
 
-    def count_by_workspace(self, workspace_id: UUID, include_deleted: bool = False) -> int:
-        return len(self.list_by_workspace(workspace_id, include_deleted=include_deleted))
+    def count_by_workspace(
+        self,
+        workspace_id: UUID,
+        include_deleted: bool = False,
+        status: DocumentStatus | None = None,
+        filters: Any = None,
+    ) -> int:
+        return len(
+            self.list_by_workspace(workspace_id, include_deleted=include_deleted, status=status)
+        )
 
     def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:
         doc = self.get_by_id(workspace_id, document_id, include_deleted=False)

@@ -10,6 +10,7 @@ Criterios de aceptación verificados:
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -68,7 +69,13 @@ class InMemorySessionDocRepo(DocumentRepositoryPort):
         return doc
 
     def list_by_workspace(
-        self, workspace_id: UUID, limit: int = 50, offset: int = 0, include_deleted: bool = False
+        self,
+        workspace_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+        include_deleted: bool = False,
+        status: Any = None,
+        filters: Any = None,
     ) -> list[Document]:
         return [
             d
@@ -76,7 +83,13 @@ class InMemorySessionDocRepo(DocumentRepositoryPort):
             if d.workspace_id == workspace_id and (include_deleted or not d.is_deleted)
         ]
 
-    def count_by_workspace(self, workspace_id: UUID, include_deleted: bool = False) -> int:
+    def count_by_workspace(
+        self,
+        workspace_id: UUID,
+        include_deleted: bool = False,
+        status: Any = None,
+        filters: Any = None,
+    ) -> int:
         return len(self.list_by_workspace(workspace_id, include_deleted=include_deleted))
 
     def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:

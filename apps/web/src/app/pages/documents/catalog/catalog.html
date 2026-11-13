@@ -63,58 +63,117 @@
     </div>
   </header>
 
-  <!-- Filtros por estado -->
-  <nav class="status-filters" aria-label="Filtro por estado de procesamiento">
-    <button
-      type="button"
-      class="filter-pill"
-      [class.active]="activeFilter() === 'ALL'"
-      (click)="setFilter('ALL')"
-      [attr.aria-pressed]="activeFilter() === 'ALL'"
-    >
-      Todos ({{ documents().length }})
-    </button>
-    <button
-      type="button"
-      class="filter-pill"
-      [class.active]="activeFilter() === 'READY'"
-      (click)="setFilter('READY')"
-      [attr.aria-pressed]="activeFilter() === 'READY'"
-    >
-      <span class="status-dot dot-ready" aria-hidden="true"></span>
-      Listos
-    </button>
-    <button
-      type="button"
-      class="filter-pill"
-      [class.active]="activeFilter() === 'PROCESSING'"
-      (click)="setFilter('PROCESSING')"
-      [attr.aria-pressed]="activeFilter() === 'PROCESSING'"
-    >
-      <span class="pulse-indicator" aria-hidden="true"></span>
-      Procesando
-    </button>
-    <button
-      type="button"
-      class="filter-pill"
-      [class.active]="activeFilter() === 'PENDING_UPLOAD'"
-      (click)="setFilter('PENDING_UPLOAD')"
-      [attr.aria-pressed]="activeFilter() === 'PENDING_UPLOAD'"
-    >
-      <span class="status-dot dot-pending" aria-hidden="true"></span>
-      Pendientes
-    </button>
-    <button
-      type="button"
-      class="filter-pill"
-      [class.active]="activeFilter() === 'FAILED'"
-      (click)="setFilter('FAILED')"
-      [attr.aria-pressed]="activeFilter() === 'FAILED'"
-    >
-      <span class="status-dot dot-failed" aria-hidden="true"></span>
-      Fallidos
-    </button>
-  </nav>
+  <!-- Barra de Filtros y Búsqueda (CDM-42) -->
+  <div class="filters-panel">
+    <div class="search-box">
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+      <input
+        type="search"
+        class="search-input"
+        placeholder="Buscar documento por nombre..."
+        [value]="searchTerm()"
+        (input)="onSearchChange($event)"
+        aria-label="Buscar documento por nombre"
+      />
+      @if (searchTerm()) {
+        <button
+          type="button"
+          class="btn-clear-search"
+          (click)="clearSearch()"
+          aria-label="Limpiar búsqueda"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      }
+    </div>
+
+    <div class="filter-controls-row">
+      <!-- Selector de formato / Tipo MIME -->
+      <div class="select-wrapper">
+        <label for="mime-select" class="sr-only">Tipo de formato</label>
+        <select
+          id="mime-select"
+          class="filter-select"
+          [value]="selectedMime()"
+          (change)="setMimeFilter($any($event.target).value)"
+        >
+          @for (opt of mimeOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Filtros por estado -->
+      <nav class="status-filters" aria-label="Filtro por estado de procesamiento">
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'ALL'"
+          (click)="setFilter('ALL')"
+          [attr.aria-pressed]="activeFilter() === 'ALL'"
+        >
+          Todos ({{ filteredDocuments().length }})
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'READY'"
+          (click)="setFilter('READY')"
+          [attr.aria-pressed]="activeFilter() === 'READY'"
+        >
+          <span class="status-dot dot-ready" aria-hidden="true"></span>
+          Listos
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'PROCESSING'"
+          (click)="setFilter('PROCESSING')"
+          [attr.aria-pressed]="activeFilter() === 'PROCESSING'"
+        >
+          <span class="pulse-indicator" aria-hidden="true"></span>
+          Procesando
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'PENDING_UPLOAD'"
+          (click)="setFilter('PENDING_UPLOAD')"
+          [attr.aria-pressed]="activeFilter() === 'PENDING_UPLOAD'"
+        >
+          <span class="status-dot dot-pending" aria-hidden="true"></span>
+          Pendientes
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'FAILED'"
+          (click)="setFilter('FAILED')"
+          [attr.aria-pressed]="activeFilter() === 'FAILED'"
+        >
+          <span class="status-dot dot-failed" aria-hidden="true"></span>
+          Fallidos
+        </button>
+      </nav>
+
+      @if (hasActiveFilters()) {
+        <button
+          type="button"
+          class="btn-reset-filters"
+          (click)="resetAllFilters()"
+          title="Restablecer todos los filtros"
+        >
+          Restablecer
+        </button>
+      }
+    </div>
+  </div>
 
   <!-- Banner de error si falla la carga -->
   @if (errorMessage()) {
@@ -149,7 +208,13 @@
         <line x1="16" y1="17" x2="8" y2="17" />
         <polyline points="10 9 9 9 8 9" />
       </svg>
-      @if (activeFilter() === 'ALL') {
+      @if (hasActiveFilters()) {
+        <h2>No hay documentos que coincidan con la búsqueda</h2>
+        <p>No se encontraron resultados con los filtros y criterios aplicados.</p>
+        <button type="button" class="btn-secondary mt-3" (click)="resetAllFilters()">
+          Restablecer todos los filtros
+        </button>
+      } @else {
         <h2>No hay documentos en este espacio</h2>
         <p>Sube tu primer archivo para comenzar el procesamiento seguro en la nube.</p>
         @if (canUpload()) {
@@ -157,12 +222,6 @@
             Subir documento ahora
           </a>
         }
-      } @else {
-        <h2>No hay documentos con el estado seleccionado</h2>
-        <p>No se encontraron documentos en estado "{{ getStatusLabel(activeFilter()) }}".</p>
-        <button type="button" class="btn-secondary mt-3" (click)="setFilter('ALL')">
-          Ver todos los documentos
-        </button>
       }
     </div>
   } @else {
@@ -294,19 +353,76 @@
           }
         </tbody>
       </table>
+
+      <!-- Barra de Paginación Server-Side (CDM-42) -->
+      <footer class="pagination-bar" aria-label="Navegación de páginas de documentos">
+        <div class="pagination-info">
+          <span>Mostrando {{ showingFrom() }} - {{ showingTo() }} de {{ totalDocuments() }} documentos</span>
+        </div>
+
+        <div class="pagination-actions">
+          <div class="page-size-selector">
+            <label for="page-size-select" class="page-size-label">Por página:</label>
+            <select
+              id="page-size-select"
+              class="page-size-select"
+              [value]="pageSize()"
+              (change)="setPageSize(+$any($event.target).value)"
+            >
+              <option [value]="10">10</option>
+              <option [value]="25">25</option>
+              <option [value]="50">50</option>
+            </select>
+          </div>
+
+          <div class="page-nav-buttons">
+            <button
+              type="button"
+              class="btn-page-nav"
+              (click)="prevPage()"
+              [disabled]="!hasPrevPage()"
+              aria-label="Página anterior"
+              title="Página anterior"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <span>Anterior</span>
+            </button>
+
+            <span class="page-indicator" aria-current="page">
+              Página {{ currentPage() }} de {{ totalPages() }}
+            </span>
+
+            <button
+              type="button"
+              class="btn-page-nav"
+              (click)="nextPage()"
+              [disabled]="!hasNextPage()"
+              aria-label="Página siguiente"
+              title="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   }
 
   <!-- Modal / Drawer de Detalle del Documento -->
   @if (isDetailOpen() && selectedDocument(); as doc) {
-    <div class="modal-backdrop" (click)="closeDetail()">
-      <div
-        class="modal-card"
-        (click)="$event.stopPropagation()"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="modal-doc-title"
-      >
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-doc-title">
+      <button
+        type="button"
+        class="modal-backdrop-scrim"
+        (click)="closeDetail()"
+        aria-label="Cerrar detalle del documento"
+      ></button>
+      <div class="modal-card">
         <header class="modal-header">
           <div>
             <span class="doc-status-badge" [ngClass]="getStatusClass(doc.status)">
@@ -351,10 +467,12 @@
               <span class="detail-label">Última Actualización</span>
               <span class="detail-value">{{ formatDate(doc.updated_at) }}</span>
             </div>
-            <div class="detail-item">
-              <span class="detail-label">Clave de Almacenamiento S3</span>
-              <span class="detail-value font-mono text-truncate" [title]="doc.storage_key">{{ doc.storage_key }}</span>
-            </div>
+            @if (doc.storage_key) {
+              <div class="detail-item">
+                <span class="detail-label">Clave de Almacenamiento S3</span>
+                <span class="detail-value font-mono text-truncate" [title]="doc.storage_key">{{ doc.storage_key }}</span>
+              </div>
+            }
             @if (doc.retry_count !== undefined && doc.retry_count > 0) {
               <div class="detail-item">
                 <span class="detail-label">Reintentos Realizados</span>
@@ -409,14 +527,14 @@
 
   <!-- Modal de Confirmación de Eliminación -->
   @if (documentToDelete(); as doc) {
-    <div class="modal-backdrop" (click)="cancelDelete()">
-      <div
-        class="modal-card modal-confirm"
-        (click)="$event.stopPropagation()"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-delete-title"
-      >
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-delete-title">
+      <button
+        type="button"
+        class="modal-backdrop-scrim"
+        (click)="cancelDelete()"
+        aria-label="Cancelar y cerrar diálogo"
+      ></button>
+      <div class="modal-card modal-confirm">
         <header class="modal-header">
           <h2 id="confirm-delete-title" class="modal-title">¿Eliminar documento?</h2>
         </header>

@@ -15,7 +15,7 @@ export interface DocumentItem {
   workspace_id: string;
   uploaded_by: string;
   original_filename: string;
-  storage_key: string;
+  storage_key?: string | null;
   content_type: string;
   size_bytes: number;
   checksum_sha256?: string | null;
@@ -25,6 +25,25 @@ export interface DocumentItem {
   updated_at: string;
   failure_reason?: string | null;
   retry_count?: number;
+}
+
+export interface DocumentFilterOptions {
+  limit?: number;
+  offset?: number;
+  status?: DocumentStatus | 'ALL';
+  search?: string;
+  content_type?: string;
+  uploaded_by?: string;
+  created_after?: string;
+  created_before?: string;
+}
+
+export interface DocumentListResult {
+  items: DocumentItem[];
+  total: number;
+  limit?: number;
+  offset?: number;
+  has_more?: boolean;
 }
 
 export interface UploadSessionRequest {

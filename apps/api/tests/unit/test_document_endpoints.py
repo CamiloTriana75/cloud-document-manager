@@ -247,3 +247,108 @@ def test_list_documents_filtering_by_status(test_client: TestClient, sqlite_sess
     assert failed_item["status"] == "FAILED"
     assert failed_item["failure_reason"] == "Archivo no legible."
     assert "updated_at" in failed_item
+
+
+def test_list_documents_multicriteria_filters_and_pagination(
+    test_client: TestClient, sqlite_session: Session
+):
+    """Criterios de aceptación CDM-42:
+
+    - Paginación con limit y offset y orden estable.
+    - Filtros por nombre (search), tipo MIME (content_type) y estado.
+    - Ocultamiento de storage_key interna en respuesta pública.
+    - Aislamiento estricto de tenant (anti-IDOR).
+    """
+    u_a = UserModel(id=uuid4(), cognito_sub="sub-cat-a", email="cata@test.com")
+    u_b = UserModel(id=uuid4(), cognito_sub="sub-cat-b", email="catb@test.com")
+    ws_a = WorkspaceModel(id=uuid4(), name="WS Catalog A", slug="ws-cat-a", created_by=u_a.id)
+    ws_b = WorkspaceModel(id=uuid4(), name="WS Catalog B", slug="ws-cat-b", created_by=u_b.id)
+
+    m_a = WorkspaceMembershipModel(
+        id=uuid4(), workspace_id=ws_a.id, user_id=u_a.id, role="OWNER", status="ACTIVE"
+    )
+    m_b = WorkspaceMembershipModel(
+        id=uuid4(), workspace_id=ws_b.id, user_id=u_b.id, role="OWNER", status="ACTIVE"
+    )
+
+    doc_a1 = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws_a.id,
+        uploaded_by=u_a.id,
+        original_filename="informe_financiero_2026.pdf",
+        storage_key=f"tenants/{ws_a.id}/docs/a1.pdf",
+        content_type="application/pdf",
+        size_bytes=1000,
+        status=DocumentStatus.READY.value,
+    )
+    doc_a2 = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws_a.id,
+        uploaded_by=u_a.id,
+        original_filename="informe_ventas_q1.docx",
+        storage_key=f"tenants/{ws_a.id}/docs/a2.docx",
+        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        size_bytes=2000,
+        status=DocumentStatus.READY.value,
+    )
+    doc_a3 = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws_a.id,
+        uploaded_by=u_a.id,
+        original_filename="foto_producto.png",
+        storage_key=f"tenants/{ws_a.id}/docs/a3.png",
+        content_type="image/png",
+        size_bytes=3000,
+        status=DocumentStatus.PROCESSING.value,
+    )
+
+    # Documento señuelo en WS B con nombre idéntico para validar anti-IDOR
+    doc_b_leak = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws_b.id,
+        uploaded_by=u_b.id,
+        original_filename="informe_financiero_2026.pdf",
+        storage_key=f"tenants/{ws_b.id}/docs/b_leak.pdf",
+        content_type="application/pdf",
+        size_bytes=9999,
+        status=DocumentStatus.READY.value,
+    )
+
+    sqlite_session.add_all([u_a, u_b, ws_a, ws_b, m_a, m_b, doc_a1, doc_a2, doc_a3, doc_b_leak])
+    sqlite_session.commit()
+
+    test_client.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        cognito_sub="sub-cat-a", email="cata@test.com"
+    )
+
+    # 1. Búsqueda por término parcial (case-insensitive) "informe" -> doc_a1 y doc_a2
+    res_search = test_client.get(f"/api/v1/workspaces/{ws_a.id}/documents?search=INFORME")
+    assert res_search.status_code == 200
+    data_search = res_search.json()["data"]
+    assert len(data_search) == 2
+    filenames = {d["original_filename"] for d in data_search}
+    assert filenames == {"informe_financiero_2026.pdf", "informe_ventas_q1.docx"}
+    # Verificación de que no se fuga la storage_key física en respuestas públicas
+    assert all(d["storage_key"] is None for d in data_search)
+
+    # 2. Filtro por tipo MIME: image/png -> solo doc_a3
+    res_mime = test_client.get(f"/api/v1/workspaces/{ws_a.id}/documents?content_type=image/png")
+    assert res_mime.status_code == 200
+    data_mime = res_mime.json()["data"]
+    assert len(data_mime) == 1
+    assert data_mime[0]["original_filename"] == "foto_producto.png"
+
+    # 3. Paginación: limit=2, offset=0
+    res_page1 = test_client.get(f"/api/v1/workspaces/{ws_a.id}/documents?limit=2&offset=0")
+    assert res_page1.status_code == 200
+    body_p1 = res_page1.json()
+    assert len(body_p1["data"]) == 2
+    assert body_p1["pagination"]["total"] == 3
+    assert body_p1["pagination"]["has_more"] is True
+
+    # Página 2: limit=2, offset=2
+    res_page2 = test_client.get(f"/api/v1/workspaces/{ws_a.id}/documents?limit=2&offset=2")
+    assert res_page2.status_code == 200
+    body_p2 = res_page2.json()
+    assert len(body_p2["data"]) == 1
+    assert body_p2["pagination"]["has_more"] is False
