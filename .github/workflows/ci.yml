@@ -99,6 +99,12 @@ jobs:
       - name: Pruebas (vitest, una sola pasada)
         run: pnpm exec ng test --no-watch
 
+      - name: Instalar binarios y dependencias de Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Pruebas E2E de flujos principales (Playwright)
+        run: pnpm run e2e
+
   infra:
     name: Infra — terraform fmt y validate
     runs-on: ubuntu-latest

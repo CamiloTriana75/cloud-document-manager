@@ -23,6 +23,12 @@ coverage/
 .npm/
 pnpm-debug.log*
 
+# --- Playwright / E2E ---
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
 # --- Terraform ---
 # State remoto: nunca en el repo. Lockfiles sí se versionan.
 .terraform/

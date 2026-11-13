@@ -35,7 +35,7 @@
   }
 
   <!-- Zona de carga (Dropzone) cuando está en reposo o antes de subir -->
-  @if (uploadState.status === 'idle' || uploadState.status === 'cancelled') {
+  @if (uploadState().status === 'idle' || uploadState().status === 'cancelled') {
     <div
       class="dropzone"
       [class.dropzone-dragging]="isDragging"
@@ -104,38 +104,38 @@
   }
 
   <!-- Progreso en tiempo real de carga directa -->
-  @if (uploadState.status === 'requesting' || uploadState.status === 'uploading' || uploadState.status === 'completing') {
+  @if (uploadState().status === 'requesting' || uploadState().status === 'uploading' || uploadState().status === 'completing') {
     <div class="progress-card" role="region" aria-label="Progreso de la carga">
       <div class="progress-header">
         <div class="progress-title-wrapper">
           <span class="spinner" aria-hidden="true"></span>
           <span class="progress-phase-title">
-            @switch (uploadState.status) {
+            @switch (uploadState().status) {
               @case ('requesting') { Solicitando sesión y URL prefirmada S3... }
               @case ('uploading') { Transfiriendo binario a S3 (PUT directo)... }
               @case ('completing') { Reconciliando objeto y confirmando metadatos... }
             }
           </span>
         </div>
-        <span class="progress-percentage">{{ uploadState.progressPercentage }}%</span>
+        <span class="progress-percentage">{{ uploadState().progressPercentage }}%</span>
       </div>
 
       <div
         class="progress-bar-track"
         role="progressbar"
-        [attr.aria-valuenow]="uploadState.progressPercentage"
+        [attr.aria-valuenow]="uploadState().progressPercentage"
         aria-valuemin="0"
         aria-valuemax="100"
       >
         <div
           class="progress-bar-fill"
-          [style.width.%]="uploadState.progressPercentage"
+          [style.width.%]="uploadState().progressPercentage"
         ></div>
       </div>
 
       <div class="progress-footer">
         <span class="progress-bytes">
-          {{ formatBytes(uploadState.loadedBytes) }} de {{ formatBytes(uploadState.totalBytes) }}
+          {{ formatBytes(uploadState().loadedBytes) }} de {{ formatBytes(uploadState().totalBytes) }}
         </span>
         <button type="button" class="btn btn-outline-danger btn-sm" (click)="cancelUpload()">
           Cancelar subida
@@ -145,14 +145,14 @@
   }
 
   <!-- Estado exitoso / resultado de procesamiento -->
-  @if (uploadState.status === 'completed' && uploadState.document) {
+  @if (uploadState().status === 'completed' && uploadState().document) {
     <div class="result-card result-success" role="status" aria-live="polite">
       <div class="result-icon" aria-hidden="true">✅</div>
       <div class="result-content">
         <div class="result-heading-row">
           <h2 class="result-title">¡Documento cargado exitosamente!</h2>
           <div class="result-status-badge-container">
-            @switch (currentDocumentStatus() || uploadState.document.status) {
+            @switch (currentDocumentStatus() || uploadState().document?.status) {
               @case ('READY') {
                 <span class="doc-status-badge doc-status-ready">
                   ✓ LISTO
@@ -178,9 +178,9 @@
         </div>
 
         <p class="result-message">
-          @if ((currentDocumentStatus() || uploadState.document.status) === 'READY') {
+          @if ((currentDocumentStatus() || uploadState().document?.status) === 'READY') {
             El archivo fue almacenado de forma segura y su procesamiento asíncrono ha finalizado correctamente.
-          } @else if ((currentDocumentStatus() || uploadState.document.status) === 'FAILED') {
+          } @else if ((currentDocumentStatus() || uploadState().document?.status) === 'FAILED') {
             El archivo fue almacenado en S3 pero ocurrió un fallo durante el análisis asíncrono.
           } @else {
             El archivo se transfirió al bucket S3 privado y los eventos de procesamiento asíncrono están en marcha.
@@ -188,13 +188,13 @@
         </p>
 
         <div class="result-metadata">
-          <p><strong>Nombre:</strong> {{ uploadState.document.original_filename }}</p>
-          <p><strong>Tamaño:</strong> {{ formatBytes(uploadState.document.size_bytes) }}</p>
-          <p><strong>Identificador:</strong> <code>{{ uploadState.document.id }}</code></p>
+          <p><strong>Nombre:</strong> {{ uploadState().document?.original_filename }}</p>
+          <p><strong>Tamaño:</strong> {{ formatBytes(uploadState().document?.size_bytes || 0) }}</p>
+          <p><strong>Identificador:</strong> <code>{{ uploadState().document?.id }}</code></p>
           <p>
             <strong>Estado actual:</strong>
             <span class="status-indicator-text">
-              {{ currentDocumentStatus() || uploadState.document.status }}
+              {{ currentDocumentStatus() || uploadState().document?.status }}
               @if (isPollingStatus()) {
                 <small class="polling-note">(sincronizando estado asíncrono...)</small>
               }
@@ -208,7 +208,7 @@
           </button>
           <a
             [routerLink]="['/workspaces', workspaceId, 'documents']"
-            [queryParams]="{ docId: uploadState.document.id }"
+            [queryParams]="{ docId: uploadState().document?.id }"
             class="btn btn-secondary"
           >
             Ver en el catálogo
@@ -219,12 +219,12 @@
   }
 
   <!-- Estado de error -->
-  @if (uploadState.status === 'error') {
+  @if (uploadState().status === 'error') {
     <div class="result-card result-error" role="alert" aria-live="assertive">
       <div class="result-icon" aria-hidden="true">❌</div>
       <div class="result-content">
         <h2 class="result-title">Error al transferir el documento</h2>
-        <p class="result-message">{{ uploadState.error }}</p>
+        <p class="result-message">{{ uploadState().error }}</p>
         <div class="result-actions">
           <button type="button" class="btn btn-primary" (click)="startUpload()">
             Reintentar carga
