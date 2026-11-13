@@ -114,3 +114,18 @@ output "lambda_worker_function_arn" {
   description = "ARN de la función Lambda worker para eventos asíncronos."
   value       = module.lambda_worker.function_arn
 }
+
+output "cloudwatch_alerts_topic_arn" {
+  description = "ARN del tópico SNS receptor de alarmas CloudWatch (CDM-52)."
+  value       = module.observability.sns_alerts_topic_arn
+}
+
+output "cloudwatch_api_errors_alarm_arn" {
+  description = "ARN de la alarma CloudWatch para errores de Lambda API."
+  value       = module.observability.api_errors_alarm_arn
+}
+
+output "cloudwatch_worker_errors_alarm_arn" {
+  description = "ARN de la alarma CloudWatch para errores de Lambda Worker."
+  value       = module.observability.worker_errors_alarm_arn
+}
