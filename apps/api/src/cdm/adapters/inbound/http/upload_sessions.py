@@ -19,6 +19,7 @@ from cdm.adapters.inbound.http.dependencies import (
     get_tenant_context,
 )
 from cdm.adapters.inbound.http.errors import ERROR_RESPONSES
+from cdm.adapters.inbound.http.rate_limit import rate_limit_dependency
 from cdm.application.use_cases.upload_sessions import (
     CancelUploadSessionUseCase,
     CleanupExpiredUploadSessionsUseCase,
@@ -121,6 +122,7 @@ class EnvelopeCleanupReport(BaseModel):
         "(requiere rol MEMBER o superior)."
     ),
     responses=ERROR_RESPONSES,
+    dependencies=[Depends(rate_limit_dependency())],
 )
 def create_upload_session(
     payload: CreateUploadSessionRequest,
