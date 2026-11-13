@@ -45,4 +45,20 @@ describe('KpiCardComponent', () => {
     button?.click();
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it('proyecta un detalle de ancho completo y omite la cifra si no hay valor', async () => {
+    const { Component } = await import('@angular/core');
+    @Component({
+      imports: [KpiCardComponent],
+      template: `<app-kpi-card label="Pipeline"><p kpiDetail class="detalle">3 en curso</p></app-kpi-card>`,
+    })
+    class HostComponent {}
+    const fixture = TestBed.createComponent(HostComponent);
+    fixture.detectChanges();
+    const host = fixture.nativeElement as HTMLElement;
+
+    expect(host.querySelector('.kpi__detail .detalle')?.textContent).toBe('3 en curso');
+    expect(host.querySelector('.kpi__value')).toBeNull();
+  });
 });
+

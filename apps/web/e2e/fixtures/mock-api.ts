@@ -302,7 +302,7 @@ export async function setupMockApiRoutes(page: Page, workspace = MOCK_WORKSPACE)
       }
 
       // Catálogo con filtros y búsqueda
-      const search = url.searchParams.get('search_term')?.toLowerCase() || '';
+      const search = (url.searchParams.get('search') ?? '').toLowerCase();
       const statusFilter = url.searchParams.get('status');
 
       let filtered = MOCK_DOCUMENTS;

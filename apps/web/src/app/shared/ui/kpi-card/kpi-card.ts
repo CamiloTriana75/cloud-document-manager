@@ -22,24 +22,27 @@ import { IconComponent } from '../icon/icon';
           </button>
         }
       </header>
-      <div class="kpi__body">
-        <div class="kpi__figure">
-          @if (loading()) {
-            <span class="skeleton kpi__skeleton"></span>
-            <span class="skeleton kpi__skeleton kpi__skeleton--short"></span>
-          } @else {
-            <p class="kpi__value tabular">
-              {{ value() }}@if (unit()) {<span class="kpi__unit">{{ unit() }}</span>}
-            </p>
-            @if (caption()) {
-              <p class="kpi__caption" [class.kpi__caption--positive]="captionTone() === 'positive'">
-                {{ caption() }}
+      @if (loading() || value() !== null) {
+        <div class="kpi__body">
+          <div class="kpi__figure">
+            @if (loading()) {
+              <span class="skeleton kpi__skeleton"></span>
+              <span class="skeleton kpi__skeleton kpi__skeleton--short"></span>
+            } @else {
+              <p class="kpi__value tabular">
+                {{ value() }}@if (unit()) {<span class="kpi__unit">{{ unit() }}</span>}
               </p>
+              @if (caption()) {
+                <p class="kpi__caption" [class.kpi__caption--positive]="captionTone() === 'positive'">
+                  {{ caption() }}
+                </p>
+              }
             }
-          }
+          </div>
+          <div class="kpi__visual"><ng-content select="[kpiVisual]" /></div>
         </div>
-        <div class="kpi__visual"><ng-content select="[kpiVisual]" /></div>
-      </div>
+      }
+      <div class="kpi__detail"><ng-content select="[kpiDetail]" /></div>
     </article>
   `,
   styles: `
@@ -116,7 +119,8 @@ import { IconComponent } from '../icon/icon';
       width: 8rem;
       height: 0.875rem;
     }
-    .kpi__visual:empty {
+    .kpi__visual:empty,
+    .kpi__detail:empty {
       display: none;
     }
   `,
