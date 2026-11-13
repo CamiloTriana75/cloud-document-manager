@@ -1,0 +1,126 @@
+<div class="home-container">
+  @if (authService.isAuthenticated()) {
+    <section class="card welcome-card" aria-labelledby="welcome-title">
+      <div class="welcome-header">
+        <div>
+          <h1 id="welcome-title" class="welcome-title">
+            Panel de Inicio
+          </h1>
+          <p class="welcome-subtitle">
+            Conectado como <strong>{{ authService.currentUser()?.email }}</strong>
+          </p>
+        </div>
+
+        @if (workspaceService.activeWorkspace(); as ws) {
+          <div class="active-ws-pill">
+            <span class="ws-label">Espacio activo:</span>
+            <span class="ws-title">{{ ws.name }}</span>
+            <span class="role-badge role-{{ ws.role | lowercase }}">{{ ws.role }}</span>
+          </div>
+        }
+      </div>
+
+      @if (workspaceService.activeWorkspace(); as ws) {
+        <div class="quick-nav-grid" role="navigation" aria-label="Acciones rápidas del espacio">
+          <a [routerLink]="['/workspaces', ws.id, 'documents']" class="quick-nav-card">
+            <div class="quick-card-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+              </svg>
+            </div>
+            <div class="quick-card-body">
+              <span class="quick-card-title">Catálogo Documental</span>
+              <span class="quick-card-desc">Explora, busca y descarga los documentos de tu espacio.</span>
+            </div>
+          </a>
+
+          <a [routerLink]="['/workspaces', ws.id, 'upload']" class="quick-nav-card">
+            <div class="quick-card-icon icon-upload">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div class="quick-card-body">
+              <span class="quick-card-title">Cargar Documentos</span>
+              <span class="quick-card-desc">Sube archivos a S3 con verificación de integridad.</span>
+            </div>
+          </a>
+
+          <a [routerLink]="['/workspaces', ws.id, 'members']" class="quick-nav-card">
+            <div class="quick-card-icon icon-members">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div class="quick-card-body">
+              <span class="quick-card-title">Miembros y Roles</span>
+              <span class="quick-card-desc">Consulta los colaboradores o invita nuevos integrantes.</span>
+            </div>
+          </a>
+        </div>
+      } @else {
+        <div class="no-workspace-cta">
+          <p>No tienes ningún espacio de trabajo seleccionado o creado aún.</p>
+          <a routerLink="/workspaces/new" class="btn-create-ws">
+            + Crear nuevo espacio de trabajo
+          </a>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="card" aria-labelledby="api-status-title">
+    <h2 id="api-status-title" class="status-heading">Estado de la API</h2>
+
+    @if (isLoading()) {
+      <div class="skeleton" role="status" aria-label="Consultando estado de la API"></div>
+    } @else if (isOk()) {
+      <div class="status status-ok" role="status">
+        <svg
+          class="dot"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+        >
+          <circle cx="6" cy="6" r="6" fill="currentColor" />
+        </svg>
+        <div>
+          <p class="status-title">Operativa</p>
+          <p class="status-detail">
+            {{ status()!.service }} · v{{ status()!.version }}
+          </p>
+        </div>
+      </div>
+    } @else {
+      <div class="status status-error">
+        <svg
+          class="dot"
+          width="12"
+          height="12"
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+        >
+          <circle cx="6" cy="6" r="6" fill="currentColor" />
+        </svg>
+        <div>
+          <p class="status-title">No disponible</p>
+          <p class="status-detail">
+            No se pudo contactar la API. Verifica que esté en ejecución.
+          </p>
+          <button type="button" class="btn-retry" (click)="refresh()">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+</div>

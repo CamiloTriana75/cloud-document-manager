@@ -1,0 +1,239 @@
+<div class="upload-container">
+  <header class="upload-header">
+    <nav class="breadcrumb" aria-label="Miga de pan">
+      <a routerLink="/" class="breadcrumb-link">Inicio</a>
+      <span class="breadcrumb-separator" aria-hidden="true">/</span>
+      <span class="breadcrumb-current">{{ workspaceName || 'Espacio de trabajo' }}</span>
+      <span class="breadcrumb-separator" aria-hidden="true">/</span>
+      <span class="breadcrumb-current">Cargar documento</span>
+    </nav>
+    <h1 class="upload-title">Carga directa y segura a la nube</h1>
+    <p class="upload-description">
+      Transfiere documentos cifrados directamente a Amazon S3 privado mediante URL prefirmada de vida corta.
+    </p>
+  </header>
+
+  <!-- Advertencia de permisos (ADR-0001: VIEWER es solo lectura) -->
+  @if (!canUpload()) {
+    <div class="alert alert-warning" role="alert">
+      <span class="alert-icon" aria-hidden="true">🔒</span>
+      <div class="alert-content">
+        <strong class="alert-heading">Permiso insuficiente para carga</strong>
+        <p class="alert-text">
+          Tu rol actual en este espacio es <strong>VIEWER (Solo lectura)</strong>. Para subir documentos debes tener rol MEMBER, EDITOR, ADMIN u OWNER.
+        </p>
+      </div>
+    </div>
+  }
+
+  <!-- Estado de error de validación -->
+  @if (validationError) {
+    <div class="alert alert-danger" role="alert" aria-live="assertive">
+      <span class="alert-icon" aria-hidden="true">⚠️</span>
+      <p class="alert-message">{{ validationError }}</p>
+    </div>
+  }
+
+  <!-- Zona de carga (Dropzone) cuando está en reposo o antes de subir -->
+  @if (uploadState().status === 'idle' || uploadState().status === 'cancelled') {
+    <div
+      class="dropzone"
+      [class.dropzone-dragging]="isDragging"
+      [class.dropzone-disabled]="!canUpload()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+      (keydown.enter)="triggerFileInput(fileInput)"
+      (keydown.space)="triggerFileInput(fileInput)"
+      [attr.tabindex]="canUpload() ? 0 : -1"
+      role="region"
+      aria-label="Zona de carga de archivos (presiona Enter o Espacio para seleccionar)"
+    >
+      <div class="dropzone-content">
+        <div class="dropzone-icon" aria-hidden="true">📄</div>
+        <p class="dropzone-text">
+          Arrastra y suelta tu archivo aquí, o usa el botón para explorarlo
+        </p>
+        <label
+          for="file-upload-input"
+          class="btn btn-secondary file-input-label"
+          [class.disabled-label]="!canUpload()"
+        >
+          Seleccionar archivo desde el equipo
+        </label>
+        <input
+          #fileInput
+          id="file-upload-input"
+          type="file"
+          class="file-input-hidden"
+          (change)="onFileInputChange($event)"
+          [accept]="allowedExtensions.join(',')"
+          [disabled]="!canUpload()"
+        />
+        <p class="dropzone-hint">
+          Formatos admitidos: PDF, PNG, JPG, TXT, MD, CSV, JSON, DOCX, XLSX (Máximo 50 MB)
+        </p>
+      </div>
+    </div>
+
+    <!-- Archivo seleccionado preparado para iniciar carga -->
+    @if (selectedFile) {
+      <div class="selected-file-card" aria-live="polite">
+        <div class="file-info">
+          <span class="file-icon" aria-hidden="true">📎</span>
+          <div class="file-details">
+            <span class="file-name">{{ selectedFile.name }}</span>
+            <span class="file-size">{{ formatBytes(selectedFile.size) }}</span>
+          </div>
+        </div>
+        <div class="file-actions">
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="startUpload()"
+            [disabled]="!canUpload()"
+          >
+            Iniciar carga segura a S3
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="resetForm()">
+            Quitar
+          </button>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Progreso en tiempo real de carga directa -->
+  @if (uploadState().status === 'requesting' || uploadState().status === 'uploading' || uploadState().status === 'completing') {
+    <div class="progress-card" role="region" aria-label="Progreso de la carga">
+      <div class="progress-header">
+        <div class="progress-title-wrapper">
+          <span class="spinner" aria-hidden="true"></span>
+          <span class="progress-phase-title">
+            @switch (uploadState().status) {
+              @case ('requesting') { Solicitando sesión y URL prefirmada S3... }
+              @case ('uploading') { Transfiriendo binario a S3 (PUT directo)... }
+              @case ('completing') { Reconciliando objeto y confirmando metadatos... }
+            }
+          </span>
+        </div>
+        <span class="progress-percentage">{{ uploadState().progressPercentage }}%</span>
+      </div>
+
+      <div
+        class="progress-bar-track"
+        role="progressbar"
+        [attr.aria-valuenow]="uploadState().progressPercentage"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <div
+          class="progress-bar-fill"
+          [style.width.%]="uploadState().progressPercentage"
+        ></div>
+      </div>
+
+      <div class="progress-footer">
+        <span class="progress-bytes">
+          {{ formatBytes(uploadState().loadedBytes) }} de {{ formatBytes(uploadState().totalBytes) }}
+        </span>
+        <button type="button" class="btn btn-outline-danger btn-sm" (click)="cancelUpload()">
+          Cancelar subida
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Estado exitoso / resultado de procesamiento -->
+  @if (uploadState().status === 'completed' && uploadState().document) {
+    <div class="result-card result-success" role="status" aria-live="polite">
+      <div class="result-icon" aria-hidden="true">✅</div>
+      <div class="result-content">
+        <div class="result-heading-row">
+          <h2 class="result-title">¡Documento cargado exitosamente!</h2>
+          <div class="result-status-badge-container">
+            @switch (currentDocumentStatus() || uploadState().document?.status) {
+              @case ('READY') {
+                <span class="doc-status-badge doc-status-ready">
+                  ✓ LISTO
+                </span>
+              }
+              @case ('FAILED') {
+                <span class="doc-status-badge doc-status-failed">
+                  ✕ FALLIDO
+                </span>
+              }
+              @case ('PROCESSING') {
+                <span class="doc-status-badge doc-status-processing">
+                  <span class="pulse-indicator"></span> PROCESANDO
+                </span>
+              }
+              @default {
+                <span class="doc-status-badge doc-status-uploaded">
+                  <span class="pulse-indicator"></span> CARGADO
+                </span>
+              }
+            }
+          </div>
+        </div>
+
+        <p class="result-message">
+          @if ((currentDocumentStatus() || uploadState().document?.status) === 'READY') {
+            El archivo fue almacenado de forma segura y su procesamiento asíncrono ha finalizado correctamente.
+          } @else if ((currentDocumentStatus() || uploadState().document?.status) === 'FAILED') {
+            El archivo fue almacenado en S3 pero ocurrió un fallo durante el análisis asíncrono.
+          } @else {
+            El archivo se transfirió al bucket S3 privado y los eventos de procesamiento asíncrono están en marcha.
+          }
+        </p>
+
+        <div class="result-metadata">
+          <p><strong>Nombre:</strong> {{ uploadState().document?.original_filename }}</p>
+          <p><strong>Tamaño:</strong> {{ formatBytes(uploadState().document?.size_bytes || 0) }}</p>
+          <p><strong>Identificador:</strong> <code>{{ uploadState().document?.id }}</code></p>
+          <p>
+            <strong>Estado actual:</strong>
+            <span class="status-indicator-text">
+              {{ currentDocumentStatus() || uploadState().document?.status }}
+              @if (isPollingStatus()) {
+                <small class="polling-note">(sincronizando estado asíncrono...)</small>
+              }
+            </span>
+          </p>
+        </div>
+
+        <div class="result-actions">
+          <button type="button" class="btn btn-primary" (click)="resetForm()">
+            Subir otro documento
+          </button>
+          <a
+            [routerLink]="['/workspaces', workspaceId, 'documents']"
+            [queryParams]="{ docId: uploadState().document?.id }"
+            class="btn btn-secondary"
+          >
+            Ver en el catálogo
+          </a>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Estado de error -->
+  @if (uploadState().status === 'error') {
+    <div class="result-card result-error" role="alert" aria-live="assertive">
+      <div class="result-icon" aria-hidden="true">❌</div>
+      <div class="result-content">
+        <h2 class="result-title">Error al transferir el documento</h2>
+        <p class="result-message">{{ uploadState().error }}</p>
+        <div class="result-actions">
+          <button type="button" class="btn btn-primary" (click)="startUpload()">
+            Reintentar carga
+          </button>
+          <button type="button" class="btn btn-secondary" (click)="resetForm()">
+            Elegir otro archivo
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

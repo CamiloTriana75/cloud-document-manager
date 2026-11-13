@@ -1,0 +1,691 @@
+<div class="catalog-container">
+  <!-- Header del catálogo -->
+  <header class="catalog-header">
+    <div class="header-titles">
+      <div class="workspace-badge-row">
+        <span class="workspace-name">{{ workspaceService.activeWorkspace()?.name || 'Espacio de trabajo' }}</span>
+        @if (workspaceService.activeWorkspace()?.role; as role) {
+          <span class="role-badge" [ngClass]="'role-' + role.toLowerCase()">
+            {{ role }}
+          </span>
+        }
+      </div>
+      <h1 class="page-title">Catálogo de Documentos</h1>
+      <p class="page-subtitle">
+        Gestiona y consulta el ciclo de vida de tus documentos almacenados en la nube.
+      </p>
+    </div>
+
+    <div class="header-actions">
+      <button
+        type="button"
+        class="btn-secondary btn-refresh"
+        (click)="refreshDocuments()"
+        [disabled]="isLoading() || isRefreshing()"
+        aria-label="Actualizar catálogo de documentos"
+      >
+        <svg
+          class="icon"
+          [class.spin]="isRefreshing()"
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          aria-hidden="true"
+        >
+          <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+        </svg>
+        <span>{{ isRefreshing() ? 'Actualizando...' : 'Actualizar' }}</span>
+      </button>
+
+      @if (canUpload()) {
+        <a
+          [routerLink]="['/workspaces', workspaceId(), 'upload']"
+          class="btn-primary"
+        >
+          <svg
+            class="icon"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+          </svg>
+          <span>Subir documento</span>
+        </a>
+      }
+    </div>
+  </header>
+
+  <!-- Notificación de rol en UI (ADR-0001: VIEWER es solo lectura) -->
+  @if (workspaceService.activeWorkspace()?.role === 'VIEWER') {
+    <div class="role-notice-banner" role="status">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <span>Navegando con rol <strong>VIEWER (Solo lectura)</strong>. Las acciones de subida y eliminación están deshabilitadas.</span>
+    </div>
+  }
+
+  <!-- Barra de Filtros y Búsqueda (CDM-42) -->
+  <div class="filters-panel">
+    <div class="search-box">
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </svg>
+      <input
+        type="search"
+        class="search-input"
+        placeholder="Buscar documento por nombre..."
+        [value]="searchTerm()"
+        (input)="onSearchChange($event)"
+        aria-label="Buscar documento por nombre"
+      />
+      @if (searchTerm()) {
+        <button
+          type="button"
+          class="btn-clear-search"
+          (click)="clearSearch()"
+          aria-label="Limpiar búsqueda"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      }
+    </div>
+
+    <div class="filter-controls-row">
+      <!-- Selector de formato / Tipo MIME -->
+      <div class="select-wrapper">
+        <label for="mime-select" class="sr-only">Tipo de formato</label>
+        <select
+          id="mime-select"
+          class="filter-select"
+          [value]="selectedMime()"
+          (change)="setMimeFilter($any($event.target).value)"
+        >
+          @for (opt of mimeOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Filtros por estado -->
+      <nav class="status-filters" aria-label="Filtro por estado de procesamiento">
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'ALL'"
+          (click)="setFilter('ALL')"
+          [attr.aria-pressed]="activeFilter() === 'ALL'"
+        >
+          Todos ({{ filteredDocuments().length }})
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'READY'"
+          (click)="setFilter('READY')"
+          [attr.aria-pressed]="activeFilter() === 'READY'"
+        >
+          <span class="status-dot dot-ready" aria-hidden="true"></span>
+          Listos
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'PROCESSING'"
+          (click)="setFilter('PROCESSING')"
+          [attr.aria-pressed]="activeFilter() === 'PROCESSING'"
+        >
+          <span class="pulse-indicator" aria-hidden="true"></span>
+          Procesando
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'PENDING_UPLOAD'"
+          (click)="setFilter('PENDING_UPLOAD')"
+          [attr.aria-pressed]="activeFilter() === 'PENDING_UPLOAD'"
+        >
+          <span class="status-dot dot-pending" aria-hidden="true"></span>
+          Pendientes
+        </button>
+        <button
+          type="button"
+          class="filter-pill"
+          [class.active]="activeFilter() === 'FAILED'"
+          (click)="setFilter('FAILED')"
+          [attr.aria-pressed]="activeFilter() === 'FAILED'"
+        >
+          <span class="status-dot dot-failed" aria-hidden="true"></span>
+          Fallidos
+        </button>
+      </nav>
+
+      @if (hasActiveFilters()) {
+        <button
+          type="button"
+          class="btn-reset-filters"
+          (click)="resetAllFilters()"
+          title="Restablecer todos los filtros"
+        >
+          Restablecer
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Banner de error de operaciones de acción (descarga, eliminación, reintento) -->
+  @if (actionErrorMessage(); as actionErr) {
+    <div class="alert alert-danger" role="alert" aria-live="assertive">
+      <svg class="alert-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <div class="alert-content">
+        <p class="alert-title">Acción no completada</p>
+        <p class="alert-detail">{{ actionErr }}</p>
+      </div>
+      <button
+        type="button"
+        class="btn-close-alert"
+        (click)="actionErrorMessage.set(null)"
+        aria-label="Cerrar advertencia"
+      >
+        ✕
+      </button>
+    </div>
+  }
+
+  <!-- Banner de error si falla la carga -->
+  @if (errorMessage()) {
+    <div class="alert alert-danger" role="alert">
+      <svg class="alert-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <div class="alert-content">
+        <p class="alert-title">Error al consultar documentos</p>
+        <p class="alert-detail">{{ errorMessage() }}</p>
+      </div>
+      <button type="button" class="btn-retry" (click)="loadDocuments()">Reintentar</button>
+    </div>
+  }
+
+  <!-- Estado de carga: Skeletons -->
+  @if (isLoading()) {
+    <div class="document-list-skeleton" aria-busy="true" aria-label="Cargando catálogo de documentos">
+      @for (item of [1, 2, 3, 4]; track item) {
+        <div class="skeleton-row"></div>
+      }
+    </div>
+  } @else if (filteredDocuments().length === 0) {
+    <!-- Estado vacío -->
+    <div class="empty-state">
+      <svg class="empty-icon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
+        <polyline points="10 9 9 9 8 9" />
+      </svg>
+      @if (hasActiveFilters()) {
+        <h2>No hay documentos que coincidan con la búsqueda</h2>
+        <p>No se encontraron resultados con los filtros y criterios aplicados.</p>
+        <button type="button" class="btn-secondary mt-3" (click)="resetAllFilters()">
+          Restablecer todos los filtros
+        </button>
+      } @else {
+        <h2>No hay documentos en este espacio</h2>
+        <p>Sube tu primer archivo para comenzar el procesamiento seguro en la nube.</p>
+        @if (canUpload()) {
+          <a [routerLink]="['/workspaces', workspaceId(), 'upload']" class="btn-primary mt-3">
+            Subir documento ahora
+          </a>
+        }
+      }
+    </div>
+  } @else {
+    <!-- Lista tabular de documentos -->
+    <div class="table-container">
+      <table class="documents-table" aria-label="Lista de documentos del espacio">
+        <thead>
+          <tr>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('original_filename')"
+                [attr.aria-sort]="sortColumn() === 'original_filename' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por nombre de documento"
+              >
+                <span>Documento</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'original_filename') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('status')"
+                [attr.aria-sort]="sortColumn() === 'status' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por estado"
+              >
+                <span>Estado</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'status') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('size_bytes')"
+                [attr.aria-sort]="sortColumn() === 'size_bytes' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por tamaño"
+              >
+                <span>Tamaño</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'size_bytes') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col">
+              <button
+                type="button"
+                class="th-sort-btn"
+                (click)="toggleSort('created_at')"
+                [attr.aria-sort]="sortColumn() === 'created_at' ? (sortDirection() === 'asc' ? 'ascending' : 'descending') : 'none'"
+                aria-label="Ordenar por última actualización"
+              >
+                <span>Última actualización</span>
+                <span class="sort-icon" aria-hidden="true">
+                  @if (sortColumn() === 'created_at') {
+                    {{ sortDirection() === 'asc' ? '▲' : '▼' }}
+                  } @else {
+                    ↕
+                  }
+                </span>
+              </button>
+            </th>
+            <th scope="col" class="text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (doc of sortedDocuments(); track doc.id) {
+            <tr class="document-row" [class.row-failed]="doc.status === 'FAILED'">
+              <td class="col-filename">
+                <div class="filename-wrapper">
+                  <svg class="file-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <path d="M14 2v6h6" />
+                  </svg>
+                  <div>
+                    <span class="file-title" [title]="doc.original_filename">{{ doc.original_filename }}</span>
+                    <span class="file-mime">{{ doc.content_type }}</span>
+                  </div>
+                </div>
+
+                @if (doc.status === 'FAILED' && doc.failure_reason) {
+                  <div class="failure-reason-callout" role="alert">
+                    <svg class="callout-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+                      <line x1="12" y1="8" x2="12" y2="12" />
+                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <span>{{ doc.failure_reason }}</span>
+                  </div>
+                }
+              </td>
+
+              <td class="col-status">
+                <span class="doc-status-badge" [ngClass]="getStatusClass(doc.status)">
+                  @if (doc.status === 'PROCESSING') {
+                    <span class="pulse-indicator" aria-hidden="true"></span>
+                  }
+                  {{ getStatusLabel(doc.status) }}
+                </span>
+              </td>
+
+              <td class="col-size">
+                {{ formatBytes(doc.size_bytes) }}
+              </td>
+
+              <td class="col-date">
+                <span class="date-text">{{ formatDate(doc.updated_at) }}</span>
+                <span class="date-sub">Creado: {{ formatDate(doc.created_at) }}</span>
+              </td>
+
+              <td class="col-actions text-right">
+                <div class="actions-group">
+                  @if (doc.status === 'READY') {
+                    <button
+                      type="button"
+                      class="btn-action btn-download"
+                      (click)="downloadDocument(doc)"
+                      [disabled]="downloadingDocId() === doc.id"
+                      aria-label="Descargar archivo"
+                      title="Descargar documento"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                      </svg>
+                      <span>Descargar</span>
+                    </button>
+                  }
+
+                  @if (doc.status === 'FAILED' && canRetry()) {
+                    <button
+                      type="button"
+                      class="btn-action btn-retry-doc"
+                      (click)="retryDocument(doc)"
+                      [disabled]="retryingDocId() === doc.id"
+                      aria-label="Reintentar procesamiento"
+                      title="Reintentar procesamiento del documento"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="23 4 23 10 17 10" />
+                        <polyline points="1 20 1 14 7 14" />
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                      </svg>
+                      <span>{{ retryingDocId() === doc.id ? 'Reintentando...' : 'Reintentar' }}</span>
+                    </button>
+                  }
+
+                  <button
+                    type="button"
+                    class="btn-action btn-detail"
+                    (click)="openDetail(doc)"
+                    aria-label="Ver detalle técnico del documento"
+                    title="Detalle del documento"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                    <span>Detalle</span>
+                  </button>
+
+                  @if (canDelete()) {
+                    <button
+                      type="button"
+                      class="btn-action btn-delete"
+                      (click)="confirmDelete(doc)"
+                      aria-label="Eliminar documento"
+                      title="Eliminar documento"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+
+      <!-- Barra de Paginación Server-Side (CDM-42) -->
+      <footer class="pagination-bar" aria-label="Navegación de páginas de documentos">
+        <div class="pagination-info">
+          <span>Mostrando {{ showingFrom() }} - {{ showingTo() }} de {{ totalDocuments() }} documentos</span>
+        </div>
+
+        <div class="pagination-actions">
+          <div class="page-size-selector">
+            <label for="page-size-select" class="page-size-label">Por página:</label>
+            <select
+              id="page-size-select"
+              class="page-size-select"
+              [value]="pageSize()"
+              (change)="setPageSize(+$any($event.target).value)"
+            >
+              <option [value]="10">10</option>
+              <option [value]="25">25</option>
+              <option [value]="50">50</option>
+            </select>
+          </div>
+
+          <div class="page-nav-buttons">
+            <button
+              type="button"
+              class="btn-page-nav"
+              (click)="prevPage()"
+              [disabled]="!hasPrevPage()"
+              aria-label="Página anterior"
+              title="Página anterior"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+              <span>Anterior</span>
+            </button>
+
+            <span class="page-indicator" aria-current="page">
+              Página {{ currentPage() }} de {{ totalPages() }}
+            </span>
+
+            <button
+              type="button"
+              class="btn-page-nav"
+              (click)="nextPage()"
+              [disabled]="!hasNextPage()"
+              aria-label="Página siguiente"
+              title="Página siguiente"
+            >
+              <span>Siguiente</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </footer>
+    </div>
+  }
+
+  <!-- Modal / Drawer de Detalle del Documento -->
+  @if (isDetailOpen() && selectedDocument(); as doc) {
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-doc-title">
+      <button
+        type="button"
+        class="modal-backdrop-scrim"
+        (click)="closeDetail()"
+        aria-label="Cerrar detalle del documento"
+      ></button>
+      <div class="modal-card">
+        <header class="modal-header">
+          <div>
+            <span class="doc-status-badge" [ngClass]="getStatusClass(doc.status)">
+              {{ getStatusLabel(doc.status) }}
+            </span>
+            <h2 id="modal-doc-title" class="modal-title">{{ doc.original_filename }}</h2>
+          </div>
+          <button type="button" class="btn-close" (click)="closeDetail()" aria-label="Cerrar detalle">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="modal-body">
+          @if (doc.status === 'FAILED') {
+            <div class="alert alert-danger mb-4" role="alert">
+              <p class="alert-title">Fallo en el procesamiento</p>
+              <p class="alert-detail">{{ doc.failure_reason || 'Se presentó un error no recuperable durante la validación del objeto.' }}</p>
+            </div>
+          }
+
+          @if (doc.status === 'PROCESSING' || doc.status === 'UPLOADED') {
+            <div class="alert alert-info mb-4" role="status">
+              <span class="pulse-indicator" aria-hidden="true"></span>
+              <span>Documento en procesamiento asíncrono. La descarga estará disponible al consolidar su estado a Listo.</span>
+            </div>
+          }
+
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-label">ID de Documento</span>
+              <span class="detail-value font-mono">{{ doc.id }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Tamaño</span>
+              <span class="detail-value">{{ formatBytes(doc.size_bytes) }} ({{ doc.size_bytes }} bytes)</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Tipo MIME</span>
+              <span class="detail-value font-mono">{{ doc.content_type }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Fecha de Carga</span>
+              <span class="detail-value">{{ formatDate(doc.created_at) }}</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-label">Última Actualización</span>
+              <span class="detail-value">{{ formatDate(doc.updated_at) }}</span>
+            </div>
+            @if (doc.storage_key) {
+              <div class="detail-item">
+                <span class="detail-label">Clave de Almacenamiento S3</span>
+                <span class="detail-value font-mono text-truncate" [title]="doc.storage_key">{{ doc.storage_key }}</span>
+              </div>
+            }
+            @if (doc.retry_count !== undefined && doc.retry_count > 0) {
+              <div class="detail-item">
+                <span class="detail-label">Reintentos Realizados</span>
+                <span class="detail-value">{{ doc.retry_count }} / 3</span>
+              </div>
+            }
+          </div>
+
+          @if (doc.technical_metadata && (doc.technical_metadata | keyvalue).length > 0) {
+            <div class="technical-metadata-section">
+              <h3 class="section-subtitle">Metadatos Técnicos (JSONB)</h3>
+              <div class="metadata-table">
+                @for (meta of doc.technical_metadata | keyvalue; track meta.key) {
+                  <div class="meta-row">
+                    <span class="meta-key">{{ meta.key }}</span>
+                    <span class="meta-val font-mono">{{ meta.value }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+
+        <footer class="modal-footer">
+          @if (doc.status === 'READY') {
+            <button
+              type="button"
+              class="btn-primary"
+              (click)="downloadDocument(doc)"
+              [disabled]="downloadingDocId() === doc.id"
+            >
+              Descargar archivo
+            </button>
+          }
+          @if (doc.status === 'FAILED' && canRetry()) {
+            <button
+              type="button"
+              class="btn-primary btn-retry-action"
+              (click)="retryDocument(doc)"
+              [disabled]="retryingDocId() === doc.id"
+            >
+              {{ retryingDocId() === doc.id ? 'Reintentando...' : 'Reintentar Procesamiento' }}
+            </button>
+          }
+          @if (canDelete()) {
+            <button
+              type="button"
+              class="btn-danger btn-delete-modal"
+              (click)="confirmDeleteFromDetail(doc)"
+              aria-label="Eliminar documento definitivamente de este espacio"
+            >
+              Eliminar documento
+            </button>
+          }
+          <button type="button" class="btn-secondary" (click)="closeDetail()">
+            Cerrar
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+
+  <!-- Modal de Confirmación de Eliminación -->
+  @if (documentToDelete(); as doc) {
+    <div class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="confirm-delete-title">
+      <button
+        type="button"
+        class="modal-backdrop-scrim"
+        (click)="cancelDelete()"
+        aria-label="Cancelar y cerrar diálogo"
+      ></button>
+      <div class="modal-card modal-confirm">
+        <header class="modal-header">
+          <h2 id="confirm-delete-title" class="modal-title">¿Eliminar documento?</h2>
+        </header>
+        <div class="modal-body">
+          <p>
+            ¿Estás seguro de que deseas eliminar lógicamente el documento
+            <strong>"{{ doc.original_filename }}"</strong>?
+          </p>
+          <p class="text-secondary text-sm mt-2">
+            El archivo dejará de estar visible en el catálogo y sus descargas quedarán revocadas de inmediato.
+          </p>
+        </div>
+        <footer class="modal-footer">
+          <button
+            type="button"
+            class="btn-secondary"
+            (click)="cancelDelete()"
+            [disabled]="isDeleting()"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            (click)="executeDelete()"
+            [disabled]="isDeleting()"
+          >
+            {{ isDeleting() ? 'Eliminando...' : 'Sí, eliminar' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+  }
+</div>

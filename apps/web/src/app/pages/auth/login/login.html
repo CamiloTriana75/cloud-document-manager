@@ -1,0 +1,78 @@
+<main class="auth-container">
+  <div class="auth-card">
+    <div class="auth-header">
+      <h1 class="auth-title">Iniciar sesión</h1>
+      <p class="auth-subtitle">Accede a tus workspaces y documentos en la nube</p>
+    </div>
+
+    @if (errorMessage()) {
+      <div class="alert alert-error" role="alert" aria-live="polite">
+        <span class="alert-icon" aria-hidden="true">⚠️</span>
+        <span>{{ errorMessage() }}</span>
+      </div>
+    }
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
+      <div class="form-group">
+        <label for="email" class="form-label">Correo electrónico</label>
+        <input
+          id="email"
+          type="email"
+          class="form-input"
+          formControlName="email"
+          placeholder="tu@organizacion.com"
+          autocomplete="username"
+          [attr.aria-invalid]="form.get('email')?.invalid && form.get('email')?.touched"
+          aria-describedby="email-error"
+        />
+        @if (form.get('email')?.invalid && form.get('email')?.touched) {
+          <span id="email-error" class="form-error">
+            Ingresa un correo electrónico válido.
+          </span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Contraseña</label>
+        <input
+          id="password"
+          type="password"
+          class="form-input"
+          formControlName="password"
+          placeholder="••••••••"
+          autocomplete="current-password"
+          [attr.aria-invalid]="form.get('password')?.invalid && form.get('password')?.touched"
+          aria-describedby="password-error"
+        />
+        @if (form.get('password')?.invalid && form.get('password')?.touched) {
+          <span id="password-error" class="form-error">
+            La contraseña es obligatoria.
+          </span>
+        }
+      </div>
+
+      <button
+        type="submit"
+        class="btn btn-primary btn-block"
+        [disabled]="isSubmitting()"
+      >
+        @if (isSubmitting()) {
+          <span>Iniciando sesión...</span>
+        } @else {
+          <span>Entrar a CDM</span>
+        }
+      </button>
+    </form>
+
+    <div class="auth-footer">
+      <p>
+        ¿No tienes una cuenta?
+        <a routerLink="/auth/register" class="link">Crear cuenta</a>
+      </p>
+      <p class="mt-2">
+        ¿Tienes un código de verificación pendiente?
+        <a routerLink="/auth/confirm" class="link">Confirmar cuenta</a>
+      </p>
+    </div>
+  </div>
+</main>

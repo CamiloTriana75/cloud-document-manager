@@ -1,0 +1,59 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.uv-cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+dist/
+build/
+*.zip
+
+# --- Node / Angular ---
+node_modules/
+dist/
+.angular/
+coverage/
+.npm/
+pnpm-debug.log*
+
+# --- Playwright / E2E ---
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# --- Terraform ---
+# State remoto: nunca en el repo. Lockfiles sí se versionan.
+.terraform/
+.terraform.lock.hcl.bak
+*.tfstate
+*.tfstate.*
+tfplan
+plan.out
+crash.log
+
+# --- Variables de entorno y secretos ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- IDE / SO ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Docker / local ---
+.docker/
+*.local.yaml
