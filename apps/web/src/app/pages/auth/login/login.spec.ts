@@ -39,4 +39,21 @@ describe('LoginComponent', () => {
     component.onSubmit();
     expect(component.isSubmitting()).toBe(false);
   });
+
+  it('permite mostrar y ocultar la contraseña sin nombre ambiguo (CDM-127)', () => {
+    const el = fixture.nativeElement as HTMLElement;
+    const input = el.querySelector('#password') as HTMLInputElement;
+    const toggle = el.querySelector('button[aria-controls="password"]') as HTMLButtonElement;
+
+    expect(input.type).toBe('password');
+    expect(toggle.getAttribute('aria-label')).toBeNull();
+    toggle.click();
+    fixture.detectChanges();
+    expect(input.type).toBe('text');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('no anida un <main> dentro del shell (CDM-127)', () => {
+    expect((fixture.nativeElement as HTMLElement).querySelector('main')).toBeNull();
+  });
 });

@@ -1,16 +1,18 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
+import { AlertComponent } from '../../../shared/ui/alert/alert';
+import { IconComponent } from '../../../shared/ui/icon/icon';
+import { AuthLayoutComponent } from '../auth-layout/auth-layout';
 
 @Component({
   selector: 'app-login',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AlertComponent, AuthLayoutComponent, IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './login.html',
-  styleUrls: ['./login.css'],
+  styleUrls: ['../auth-form.css'],
 })
 export class LoginComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
@@ -21,6 +23,7 @@ export class LoginComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
   readonly isSubmitting = signal<boolean>(false);
+  readonly showPassword = signal(false);
 
   readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -38,6 +41,15 @@ export class LoginComponent implements OnInit {
     }
   }
 
+  togglePassword(): void {
+    this.showPassword.update((visible) => !visible);
+  }
+
+  invalid(control: 'email' | 'password'): boolean {
+    const field = this.form.controls[control];
+    return field.invalid && field.touched;
+  }
+
   onSubmit(): void {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
@@ -53,7 +65,7 @@ export class LoginComponent implements OnInit {
       next: () => {
         this.isSubmitting.set(false);
         const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/';
-        this.router.navigateByUrl(returnUrl);
+        void this.router.navigateByUrl(returnUrl);
       },
       error: (err) => {
         this.isSubmitting.set(false);

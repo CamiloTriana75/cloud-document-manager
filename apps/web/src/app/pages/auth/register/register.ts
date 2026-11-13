@@ -1,5 +1,5 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
   FormBuilder,
@@ -11,10 +11,11 @@ import {
 import { Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
+import { AlertComponent } from '../../../shared/ui/alert/alert';
+import { IconComponent } from '../../../shared/ui/icon/icon';
+import { AuthLayoutComponent } from '../auth-layout/auth-layout';
 
-const passwordMatchValidator: ValidatorFn = (
-  control: AbstractControl
-): ValidationErrors | null => {
+const passwordMatchValidator: ValidatorFn = (control: AbstractControl): ValidationErrors | null => {
   const password = control.get('password');
   const confirmPassword = control.get('confirmPassword');
 
@@ -24,12 +25,21 @@ const passwordMatchValidator: ValidatorFn = (
   return null;
 };
 
+/** Requisitos de contraseña de la política de Cognito, mostrados en vivo. */
+const PASSWORD_RULES: readonly { readonly label: string; readonly test: (value: string) => boolean }[] = [
+  { label: 'Al menos 8 caracteres', test: (value) => value.length >= 8 },
+  { label: 'Una letra minúscula', test: (value) => /[a-z]/.test(value) },
+  { label: 'Una letra mayúscula', test: (value) => /[A-Z]/.test(value) },
+  { label: 'Un número', test: (value) => /\d/.test(value) },
+  { label: 'Un símbolo', test: (value) => /[\W_]/.test(value) },
+];
+
 @Component({
   selector: 'app-register',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AlertComponent, AuthLayoutComponent, IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './register.html',
-  styleUrls: ['./register.css'],
+  styleUrls: ['../auth-form.css', './register.css'],
 })
 export class RegisterComponent {
   private readonly fb = inject(FormBuilder);
@@ -38,6 +48,7 @@ export class RegisterComponent {
 
   readonly errorMessage = signal<string | null>(null);
   readonly isSubmitting = signal<boolean>(false);
+  readonly showPassword = signal(false);
 
   readonly form = this.fb.group(
     {
@@ -53,8 +64,30 @@ export class RegisterComponent {
       ],
       confirmPassword: ['', [Validators.required]],
     },
-    { validators: passwordMatchValidator }
+    { validators: passwordMatchValidator },
   );
+
+  private readonly password = toSignal(this.form.controls.password.valueChanges, {
+    initialValue: '',
+  });
+
+  protected readonly rules = computed(() => {
+    const value = this.password() ?? '';
+    return PASSWORD_RULES.map((rule) => ({ label: rule.label, met: rule.test(value) }));
+  });
+
+  togglePassword(): void {
+    this.showPassword.update((visible) => !visible);
+  }
+
+  invalid(control: 'name' | 'email' | 'password' | 'confirmPassword'): boolean {
+    const field = this.form.controls[control];
+    return field.invalid && field.touched;
+  }
+
+  mismatch(): boolean {
+    return this.form.hasError('passwordMismatch') && !!this.form.controls.confirmPassword.touched;
+  }
 
   onSubmit(): void {
     if (this.form.invalid) {
@@ -67,31 +100,25 @@ export class RegisterComponent {
 
     const { name, email, password } = this.form.getRawValue();
 
-    this.authService
-      .register({
-        name: name!,
-        email: email!,
-        password: password!,
-      })
-      .subscribe({
-        next: () => {
-          this.authService.login({ email: email!, password: password! }).subscribe({
-            next: () => {
-              this.isSubmitting.set(false);
-              this.router.navigate(['/workspaces']);
-            },
-            error: () => {
-              this.isSubmitting.set(false);
-              this.router.navigate(['/auth/login'], {
-                queryParams: { registered: 'true', email },
-              });
-            },
-          });
-        },
-        error: (err) => {
-          this.isSubmitting.set(false);
-          this.errorMessage.set(err.message || 'Error al registrar usuario.');
-        },
-      });
+    this.authService.register({ name: name!, email: email!, password: password! }).subscribe({
+      next: () => {
+        this.authService.login({ email: email!, password: password! }).subscribe({
+          next: () => {
+            this.isSubmitting.set(false);
+            void this.router.navigate(['/']);
+          },
+          error: () => {
+            this.isSubmitting.set(false);
+            void this.router.navigate(['/auth/login'], {
+              queryParams: { registered: 'true', email },
+            });
+          },
+        });
+      },
+      error: (err) => {
+        this.isSubmitting.set(false);
+        this.errorMessage.set(err.message || 'Error al registrar usuario.');
+      },
+    });
   }
 }
