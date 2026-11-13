@@ -4,11 +4,9 @@
 #   - s3_document_store : bucket privado de documentos (CDM-19)
 #   - lambda_api        : FastAPI vía Mangum (CDM-20)
 #   - apigw_http        : HTTP API entrante (CDM-20)
-#
-# Módulos pendientes para siguientes tareas:
 #   - sqs_worker_queue  : cola de eventos S3 + DLQ (CDM-35)
 #   - lambda_worker     : procesador asíncrono (CDM-36)
-#   - cognito_pool      : User Pool + App Client (CDM-24)
+#   - cognito           : User Pool + App Client (CDM-24)
 #
 # Regla: aplicar solo con revisión del plan y aprobación explícita del propietario.
 
@@ -116,4 +114,26 @@ resource "aws_s3_bucket_notification" "document_events" {
   }
 
   depends_on = [module.sqs_worker_queue]
+}
+
+# Worker asíncrono para procesamiento de eventos SQS (CDM-36)
+module "lambda_worker" {
+  source = "../../modules/lambda-worker"
+
+  function_name      = "${var.project_name}-${var.environment}-worker"
+  runtime            = "python3.12"
+  handler            = "cdm.bootstrap.worker_handler.handler"
+  memory_size        = 256
+  timeout            = 30
+  log_retention_days = var.log_retention_days
+  sqs_queue_arn      = module.sqs_worker_queue.queue_arn
+  s3_bucket_arn      = module.s3_document_store.bucket_arn
+  batch_size         = 10
+
+  environment_variables = {
+    ENVIRONMENT           = var.environment
+    DOCUMENTS_BUCKET_NAME = module.s3_document_store.bucket_name
+  }
+
+  tags = local.tags
 }
