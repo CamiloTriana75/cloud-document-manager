@@ -196,3 +196,8 @@ table {
     scroll-behavior: auto !important;
   }
 }
+
+/* Mientras hay un <dialog> modal abierto, el fondo no se desplaza. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
