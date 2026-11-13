@@ -234,7 +234,8 @@ export class AuthService {
     try {
       const parts = idToken.split('.');
       if (parts.length >= 2) {
-        const payload = JSON.parse(atob(parts[1]));
+        const payloadIndex = parts.length >= 4 ? 2 : 1;
+        const payload = JSON.parse(atob(parts[payloadIndex]));
         return {
           sub: payload.sub || 'mock-sub',
           email: payload.email || fallbackEmail,
@@ -292,21 +293,49 @@ export class AuthService {
 
   // --- Emuladores para desarrollo local offline ---
 
+  private createMockJwt(prefix: string, payload: Record<string, unknown>): string {
+    const b64 = (str: string) => btoa(unescape(encodeURIComponent(str)));
+    const header = b64(JSON.stringify({ alg: 'none', typ: 'JWT' }));
+    const body = b64(JSON.stringify(payload));
+    return `${prefix}.${header}.${body}.mock-signature`;
+  }
+
   private mockLogin(credentials: LoginCredentials): Observable<AuthResponse> {
     if (!credentials.email.includes('@') || credentials.password.length < 6) {
       this.isLoading.set(false);
       return throwError(() => new Error('Correo electrónico o contraseña incorrectos.'));
     }
 
+    const userSub = 'mock-sub-' + credentials.email.replace(/[^a-zA-Z0-9]/g, '');
+    const now = Math.floor(Date.now() / 1000);
+    const accessToken = this.createMockJwt('mock-access-token-' + Date.now(), {
+      sub: userSub,
+      email: credentials.email,
+      name: credentials.email.split('@')[0],
+      email_verified: true,
+      token_use: 'access',
+      iat: now,
+      exp: now + 3600,
+    });
+    const idToken = this.createMockJwt('mock-id-token-' + Date.now(), {
+      sub: userSub,
+      email: credentials.email,
+      name: credentials.email.split('@')[0],
+      email_verified: true,
+      token_use: 'id',
+      iat: now,
+      exp: now + 3600,
+    });
+
     const tokens: AuthTokens = {
-      accessToken: 'mock-access-token-' + Date.now(),
-      idToken: 'mock-id-token-' + Date.now(),
+      accessToken,
+      idToken,
       refreshToken: 'mock-refresh-token-' + Date.now(),
       expiresAt: Date.now() + 3600 * 1000,
     };
 
     const user: UserSession = {
-      sub: 'mock-sub-' + credentials.email.replace(/[^a-zA-Z0-9]/g, ''),
+      sub: userSub,
       email: credentials.email,
       name: credentials.email.split('@')[0],
       emailVerified: true,

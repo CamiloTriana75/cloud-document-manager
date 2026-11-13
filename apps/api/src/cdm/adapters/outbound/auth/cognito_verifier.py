@@ -53,8 +53,8 @@ class CognitoJwtVerifier(TokenVerifierPort):
 
         clean_token = token.strip()
 
-        # Si no hay user_pool_id configurado (desarrollo local sin Cognito), emular validación
-        if not self.user_pool_id or self._jwks_client is None:
+        # Si es un token de desarrollo/mock o no hay user_pool_id, emular validación
+        if clean_token.startswith("mock-") or not self.user_pool_id or self._jwks_client is None:
             return self._verify_mock_token(clean_token)
 
         try:
@@ -129,17 +129,19 @@ class CognitoJwtVerifier(TokenVerifierPort):
         """Modo offline de desarrollo para validar tokens locales sin dependencias de red."""
         if token.startswith("expired_"):
             raise ExpiredTokenError("El token ha expirado (mock).")
-        if token.startswith("invalid_") or "." not in token:
+        if token.startswith("invalid_"):
             raise InvalidTokenError("Token manipulado o con formato inválido (mock).")
 
         # Extraer claims de prueba si es un JWT válido o mock
         try:
+            parts = token.split(".")
+            raw_token = f"{parts[1]}.{parts[2]}.{parts[3]}" if len(parts) >= 4 else token
             unverified: dict[str, object] = jwt.decode(
-                token,
+                raw_token,
                 options={"verify_signature": False, "verify_exp": False},
             )
             sub = str(unverified.get("sub", "mock-sub-12345"))
-            email = str(unverified.get("email", "dev@cdm.local"))
+            email = str(unverified.get("email") or unverified.get("username") or "dev@cdm.local")
             name = str(unverified.get("name", "Usuario Dev")) if unverified.get("name") else None
             return AuthenticatedUser(
                 cognito_sub=sub,

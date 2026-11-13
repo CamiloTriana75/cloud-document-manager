@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     cognito_user_pool_id: str = ""
     cognito_client_id: str = ""
     cognito_region: str = "us-east-1"
-    s3_bucket_name: str = "cdm-documents-dev"
+    s3_bucket_name: str = "cdm-dev-docs-189648741673"
     s3_region: str = "us-east-1"
     s3_endpoint_url: str | None = None
     max_upload_size_bytes: int = 52428800  # 50 MB
