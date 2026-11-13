@@ -18,6 +18,8 @@ import {
 @Component({
   selector: 'app-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // El clic en el fondo llega por burbujeo al host; su equivalente de teclado es Escape (cancel).
+  host: { '(click)': 'onDialogClick($event)' },
   template: `
     <dialog
       #dialog
@@ -26,7 +28,6 @@ import {
       [attr.aria-label]="label()"
       [attr.aria-labelledby]="labelledBy()"
       (cancel)="onCancel($event)"
-      (click)="onDialogClick($event)"
     >
       <div class="dialog__surface"><ng-content /></div>
     </dialog>

@@ -79,6 +79,7 @@ export class MenuItemDirective {
       #panel
       class="menu__panel"
       role="menu"
+      tabindex="-1"
       [id]="panelId"
       [attr.aria-label]="label()"
       [attr.popover]="usePopover ? 'auto' : null"
