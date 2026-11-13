@@ -37,7 +37,10 @@ class S3StorageAdapter(StoragePort):
             "s3",
             region_name=self._region,
             endpoint_url=self._endpoint_url,
-            config=Config(signature_version="s3v4"),
+            config=Config(
+                signature_version="s3v4",
+                s3={"addressing_style": "virtual", "us_east_1_regional_endpoint": "regional"},
+            ),
         )
 
     def generate_download_url(
@@ -147,10 +150,12 @@ class S3StorageAdapter(StoragePort):
             )
         except Exception as exc:
             # Si es ClientError 404 de AWS, el objeto no existe en S3
-            err_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-            if err_code in ("404", "NoSuchKey", "NotFound"):
-                return None
-            # Fallback en desarrollo local sin credenciales de AWS
+            resp = getattr(exc, "response", None)
+            if isinstance(resp, dict):
+                err_code = resp.get("Error", {}).get("Code", "")
+                if err_code in ("404", "NoSuchKey", "NotFound"):
+                    return None
+            # Fallback en desarrollo local sin credenciales de AWS o ante excepciones de red/offline
             return self._mock_objects.get(storage_key)
 
     def delete_object(self, storage_key: str) -> bool:
@@ -189,9 +194,11 @@ class S3StorageAdapter(StoragePort):
             response = s3_client.get_object(**params)
             return response["Body"].read()  # type: ignore[no-any-return]
         except Exception as exc:
-            err_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
-            if err_code in ("404", "NoSuchKey", "NotFound"):
-                return None
+            resp = getattr(exc, "response", None)
+            if isinstance(resp, dict):
+                err_code = resp.get("Error", {}).get("Code", "")
+                if err_code in ("404", "NoSuchKey", "NotFound"):
+                    return None
             data = self._mock_data.get(storage_key)
             if data is None:
                 return None
