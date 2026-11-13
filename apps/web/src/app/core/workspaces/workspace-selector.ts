@@ -42,6 +42,17 @@ export class WorkspaceSelectorComponent implements OnInit {
   selectWorkspace(workspace: Workspace): void {
     this.workspaceService.setActiveWorkspace(workspace);
     this.closeDropdown();
+
+    const currentUrl = this.router.url;
+    if (currentUrl.includes('/workspaces/')) {
+      if (currentUrl.includes('/members')) {
+        this.router.navigate(['/workspaces', workspace.id, 'members']);
+      } else if (currentUrl.includes('/upload')) {
+        this.router.navigate(['/workspaces', workspace.id, 'upload']);
+      } else {
+        this.router.navigate(['/workspaces', workspace.id, 'documents']);
+      }
+    }
   }
 
   navigateToNewWorkspace(): void {

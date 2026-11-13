@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 
 import { Workspace } from './workspace.models';
 import { WorkspaceSelectorComponent } from './workspace-selector';
@@ -69,5 +69,18 @@ describe('WorkspaceSelectorComponent', () => {
 
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('.empty-state-trigger')?.textContent).toContain('+ Crear espacio');
+  });
+
+  it('sincroniza y navega a la ruta equivalente al seleccionar un nuevo workspace', () => {
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigate');
+    Object.defineProperty(router, 'url', { value: '/workspaces/ws-1/documents', configurable: true });
+
+    const newWs: Workspace = { ...mockWs, id: 'ws-2', name: 'Nuevo Espacio' };
+    const fixture = TestBed.createComponent(WorkspaceSelectorComponent);
+    fixture.componentInstance.selectWorkspace(newWs);
+
+    expect(workspaceService.activeWorkspace()?.id).toBe('ws-2');
+    expect(navigateSpy).toHaveBeenCalledWith(['/workspaces', 'ws-2', 'documents']);
   });
 });
