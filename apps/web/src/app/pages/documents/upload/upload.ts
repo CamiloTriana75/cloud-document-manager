@@ -37,12 +37,12 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   selectedFile: File | null = null;
   isDragging = false;
   validationError: string | null = null;
-  uploadState: UploadProgressState = {
+  readonly uploadState = signal<UploadProgressState>({
     status: 'idle',
     progressPercentage: 0,
     loadedBytes: 0,
     totalBytes: 0,
-  };
+  });
 
   readonly currentDocumentStatus = signal<DocumentStatus | null>(null);
   readonly isPollingStatus = signal<boolean>(false);
@@ -146,12 +146,12 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
     }
 
     this.selectedFile = file;
-    this.uploadState = {
+    this.uploadState.set({
       status: 'idle',
       progressPercentage: 0,
       loadedBytes: 0,
       totalBytes: file.size,
-    };
+    });
   }
 
   startUpload(): void {
@@ -166,7 +166,7 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
       .uploadWithProgress(this.workspaceId, this.selectedFile)
       .subscribe({
         next: (state) => {
-          this.uploadState = state;
+          this.uploadState.set(state);
           if (state.status === 'completed' && state.document) {
             this.currentDocumentStatus.set(state.document.status);
             this.startStatusPolling(state.document.id);
@@ -178,13 +178,13 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   cancelUpload(): void {
     if (this.uploadSub && !this.uploadSub.closed) {
       this.uploadSub.unsubscribe();
-      this.uploadState = {
+      this.uploadState.set({
         status: 'cancelled',
         progressPercentage: 0,
         loadedBytes: 0,
         totalBytes: this.selectedFile?.size || 0,
         error: 'Carga cancelada por el usuario.',
-      };
+      });
     }
     this.stopStatusPolling();
   }
@@ -195,12 +195,12 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
     this.selectedFile = null;
     this.validationError = null;
     this.currentDocumentStatus.set(null);
-    this.uploadState = {
+    this.uploadState.set({
       status: 'idle',
       progressPercentage: 0,
       loadedBytes: 0,
       totalBytes: 0,
-    };
+    });
   }
 
   startStatusPolling(documentId: string): void {

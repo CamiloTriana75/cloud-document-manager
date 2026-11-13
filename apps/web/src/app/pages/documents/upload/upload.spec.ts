@@ -63,7 +63,7 @@ describe('DocumentUploadComponent', () => {
     expect(component.workspaceId).toBe('ws-test-123');
     expect(component.workspaceName).toBe('Espacio Principal');
     expect(component.selectedFile).toBeNull();
-    expect(component.uploadState.status).toBe('idle');
+    expect(component.uploadState().status).toBe('idle');
   });
 
   it('redirige a la raíz si no se proporciona el ID de workspace en la ruta', () => {
@@ -89,7 +89,7 @@ describe('DocumentUploadComponent', () => {
 
     expect(component.validationError).toBeNull();
     expect(component.selectedFile).toBe(validFile);
-    expect(component.uploadState.totalBytes).toBe(validFile.size);
+    expect(component.uploadState().totalBytes).toBe(validFile.size);
   });
 
   it('rechaza archivos con extensiones no permitidas (.exe)', () => {
@@ -174,8 +174,8 @@ describe('DocumentUploadComponent', () => {
       totalBytes: 1024,
     });
 
-    expect(component.uploadState.status).toBe('uploading');
-    expect(component.uploadState.progressPercentage).toBe(50);
+    expect(component.uploadState().status).toBe('uploading');
+    expect(component.uploadState().progressPercentage).toBe(50);
 
     // Emite estado final
     const mockDoc: DocumentItem = {
@@ -201,8 +201,8 @@ describe('DocumentUploadComponent', () => {
       document: mockDoc,
     });
 
-    expect(component.uploadState.status).toBe('completed');
-    expect(component.uploadState.progressPercentage).toBe(100);
+    expect(component.uploadState().status).toBe('completed');
+    expect(component.uploadState().progressPercentage).toBe(100);
   });
 
   it('permite cancelar la carga en curso interrumpiendo la suscripción', () => {
@@ -226,8 +226,8 @@ describe('DocumentUploadComponent', () => {
 
     component.cancelUpload();
 
-    expect(component.uploadState.status).toBe('cancelled');
-    expect(component.uploadState.error).toContain('cancelada');
+    expect(component.uploadState().status).toBe('cancelled');
+    expect(component.uploadState().error).toContain('cancelada');
   });
 
   it('resetForm limpia el estado completo de carga y archivo seleccionado', () => {
@@ -240,7 +240,7 @@ describe('DocumentUploadComponent', () => {
 
     expect(component.selectedFile).toBeNull();
     expect(component.validationError).toBeNull();
-    expect(component.uploadState.status).toBe('idle');
+    expect(component.uploadState().status).toBe('idle');
   });
 
   it('formatBytes formatea tamaños legibles correctamente', () => {
