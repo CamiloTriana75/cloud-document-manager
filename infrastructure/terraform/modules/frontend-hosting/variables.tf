@@ -28,6 +28,12 @@ variable "force_destroy" {
   default     = true
 }
 
+variable "enable_cloudfront" {
+  description = "Habilita la distribución CloudFront para el frontend. Si la cuenta AWS requiere verificación previa de soporte, puede deshabilitarse temporalmente."
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Etiquetas a aplicar a todos los recursos del módulo."
   type        = map(string)

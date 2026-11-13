@@ -69,6 +69,12 @@ variable "enable_rds" {
   default     = false
 }
 
+variable "enable_cloudfront" {
+  description = "Habilita la distribución CloudFront para el frontend (CDM-80). Requiere verificación previa de la cuenta AWS por soporte."
+  type        = bool
+  default     = false
+}
+
 variable "common_tags" {
   description = "Etiquetas adicionales aplicables a todos los recursos."
   type        = map(string)

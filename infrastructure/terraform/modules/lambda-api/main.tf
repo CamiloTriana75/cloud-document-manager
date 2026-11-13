@@ -46,7 +46,7 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
 
 # 3. Política S3 least-privilege acotada al tenant (CDM-51 / AGENTS.md §13)
 data "aws_iam_policy_document" "lambda_s3_least_privilege" {
-  count = var.s3_bucket_arn != null ? 1 : 0
+  count = var.attach_s3_policy ? 1 : 0
 
   statement {
     sid    = "AllowS3TenantScopedObjectAccess"
@@ -64,7 +64,7 @@ data "aws_iam_policy_document" "lambda_s3_least_privilege" {
 }
 
 resource "aws_iam_role_policy" "lambda_s3" {
-  count  = var.s3_bucket_arn != null ? 1 : 0
+  count  = var.attach_s3_policy ? 1 : 0
   name   = "${var.function_name}-s3-tenant-policy"
   role   = aws_iam_role.lambda_exec.id
   policy = data.aws_iam_policy_document.lambda_s3_least_privilege[0].json

@@ -12,15 +12,15 @@ output "bucket_arn" {
 
 output "cloudfront_distribution_id" {
   description = "ID de la distribución de CloudFront (necesario para invalidar caché tras un deploy)."
-  value       = aws_cloudfront_distribution.frontend.id
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.frontend[0].id : null
 }
 
 output "cloudfront_domain_name" {
   description = "Nombre de dominio asignado por CloudFront (p. ej. d123456abcdef8.cloudfront.net)."
-  value       = aws_cloudfront_distribution.frontend.domain_name
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.frontend[0].domain_name : null
 }
 
 output "cloudfront_url" {
   description = "URL HTTPS pública de la aplicación Angular."
-  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+  value       = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : null
 }
