@@ -57,6 +57,22 @@ _FORBIDDEN_BACKWARD_TRANSITIONS: dict[DocumentStatus, set[DocumentStatus]] = {
 
 
 @dataclass(frozen=True)
+class DocumentQueryFilter:
+    """Filtros estructurados para consultas del catálogo documental (CDM-41 / CDM-42).
+
+    Value Object inmutable sin dependencias de frameworks ni persistencia.
+    """
+
+    status: DocumentStatus | None = None
+    content_type: str | None = None
+    search_term: str | None = None
+    uploaded_by: UUID | None = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+    include_deleted: bool = False
+
+
+@dataclass(frozen=True)
 class Document:
     """Entidad pura de dominio para un documento en el sistema."""
 
