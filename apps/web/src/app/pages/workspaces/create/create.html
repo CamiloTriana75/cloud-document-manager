@@ -1,124 +1,88 @@
-<section class="create-workspace-page" aria-labelledby="create-ws-title">
-  <div class="card create-card">
-    <header class="card-header">
-      <a routerLink="/" class="back-link">
-        <svg
-          width="18"
-          height="18"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <line x1="19" y1="12" x2="5" y2="12" />
-          <polyline points="12 19 5 12 12 5" />
-        </svg>
-        <span>Volver</span>
-      </a>
-      <h1 id="create-ws-title" class="title">Crear espacio de trabajo</h1>
-      <p class="subtitle">
-        Los espacios de trabajo aíslan por completo tus documentos, miembros y permisos de otros equipos.
-      </p>
-    </header>
+<div class="create">
+  <app-coil-scene class="create__scene" />
 
-    @if (submitError()) {
-      <div class="alert alert-error" role="alert" aria-live="polite">
-        <svg
-          class="alert-icon"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <span>{{ submitError() }}</span>
-      </div>
+  <section class="create__intro" aria-labelledby="create-ws-title">
+    <a routerLink="/" class="back-link">
+      <app-icon name="arrow-left" [size]="16" />
+      Volver al inicio
+    </a>
+    <h1 id="create-ws-title" class="display-title">Crear espacio de trabajo</h1>
+    <p class="create__lede">
+      Un espacio aísla por completo documentos, miembros y permisos de otros equipos. Tú quedarás
+      como OWNER.
+    </p>
+    <ul class="create__facts" role="list">
+      <li><app-icon name="lock" [size]="18" /> Nadie fuera del espacio ve sus archivos ni metadatos.</li>
+      <li><app-icon name="users" [size]="18" /> Invitas a tu equipo y eliges el rol de cada persona.</li>
+      <li><app-icon name="layers" [size]="18" /> Cada documento se procesa y cataloga dentro del espacio.</li>
+    </ul>
+  </section>
+
+  <section class="create__card surface-card" aria-label="Datos del espacio de trabajo">
+    @if (submitError(); as message) {
+      <app-alert type="danger">{{ message }}</app-alert>
     }
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-body" novalidate>
-      <div class="form-group">
-        <label for="ws-name" class="form-label">
-          Nombre del espacio <span class="required" aria-hidden="true">*</span>
-        </label>
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" class="create__form" novalidate>
+      <div class="field">
+        <label for="ws-name" class="field__label">Nombre del espacio</label>
         <input
           id="ws-name"
           type="text"
           formControlName="name"
-          (input)="onNameChange()"
-          class="form-control"
-          [class.is-invalid]="form.controls.name.invalid && form.controls.name.touched"
+          class="input"
           placeholder="p. ej. Equipo de Finanzas"
           autocomplete="off"
-          [attr.aria-invalid]="form.controls.name.invalid && form.controls.name.touched"
+          (input)="onNameChange()"
+          [attr.aria-invalid]="invalid('name')"
           aria-describedby="ws-name-hint"
         />
-        <p id="ws-name-hint" class="form-hint">
-          Visible para todos los miembros que invites a este espacio.
-        </p>
-
-        @if (form.controls.name.invalid && form.controls.name.touched) {
-          <div class="field-error" role="alert">
+        <p id="ws-name-hint" class="field__hint">Visible para todos los miembros que invites.</p>
+        @if (invalid('name')) {
+          <p class="field__error" role="alert">
+            <app-icon name="alert-circle" [size]="15" />
             @if (form.controls.name.errors?.['required']) {
-              <span>El nombre del espacio es obligatorio.</span>
-            } @else if (form.controls.name.errors?.['maxlength']) {
-              <span>El nombre no puede superar los 100 caracteres.</span>
+              El nombre del espacio es obligatorio.
+            } @else {
+              El nombre no puede superar los 100 caracteres.
             }
-          </div>
+          </p>
         }
       </div>
 
-      <div class="form-group">
-        <label for="ws-slug" class="form-label">
-          Slug identificador <span class="optional">(opcional)</span>
-        </label>
+      <div class="field">
+        <label for="ws-slug" class="field__label">Identificador <span class="optional">(opcional)</span></label>
         <input
           id="ws-slug"
           type="text"
           formControlName="slug"
-          class="form-control"
-          [class.is-invalid]="form.controls.slug.invalid && form.controls.slug.touched"
+          class="input mono"
           placeholder="equipo-de-finanzas"
           autocomplete="off"
-          [attr.aria-invalid]="form.controls.slug.invalid && form.controls.slug.touched"
+          (input)="onSlugChange()"
+          [attr.aria-invalid]="invalid('slug')"
           aria-describedby="ws-slug-hint"
         />
-        <p id="ws-slug-hint" class="form-hint">
-          Identificador único en URL (solo minúsculas, números y guiones).
+        <p id="ws-slug-hint" class="field__hint">
+          Solo minúsculas, números y guiones.
+          @if (slugPreview()) {
+            <span class="slug-preview">Quedará como <code>{{ slugPreview() }}</code></span>
+          }
         </p>
-
-        @if (form.controls.slug.invalid && form.controls.slug.touched) {
-          <div class="field-error" role="alert">
-            <span>El slug solo puede contener letras minúsculas, números y guiones sencillos.</span>
-          </div>
+        @if (invalid('slug')) {
+          <p class="field__error" role="alert">
+            <app-icon name="alert-circle" [size]="15" />
+            El slug solo puede contener letras minúsculas, números y guiones sencillos.
+          </p>
         }
       </div>
 
-      <div class="form-actions">
-        <a routerLink="/" class="btn btn-secondary">Cancelar</a>
-        <button
-          type="submit"
-          class="btn btn-primary"
-          [disabled]="isSubmitting() || form.invalid"
-        >
-          @if (isSubmitting()) {
-            <span class="spinner" aria-hidden="true"></span>
-            <span>Creando espacio...</span>
-          } @else {
-            <span>Crear espacio de trabajo</span>
-          }
+      <div class="create__actions">
+        <a routerLink="/" class="btn btn--ghost">Cancelar</a>
+        <button type="submit" class="btn btn--primary" [disabled]="isSubmitting() || form.invalid">
+          {{ isSubmitting() ? 'Creando espacio…' : 'Crear espacio de trabajo' }}
         </button>
       </div>
     </form>
-  </div>
-</section>
+  </section>
+</div>

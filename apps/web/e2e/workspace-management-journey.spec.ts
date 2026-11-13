@@ -31,7 +31,7 @@ test.describe('Journey E2E: Gestión de Workspaces y Miembros (CDM-50)', () => {
     await submitBtn.click();
 
     // Redirección a la vista principal tras la creación
-    await expect(page).toHaveURL('http://localhost:4200/');
+    await expect(page).toHaveURL(/\/workspaces\/[^/]+\/documents$/);
   });
 
   test('debe validar errores de validación de slug y campos obligatorios', async ({ page }) => {
