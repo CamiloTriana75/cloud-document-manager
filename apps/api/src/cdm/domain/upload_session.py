@@ -75,7 +75,12 @@ class UploadSession:
     def is_expired(self, now: datetime | None = None) -> bool:
         """Determina si la sesión ha caducado temporalmente."""
         current_time = now or datetime.now(UTC)
-        return current_time >= self.expires_at
+        expires_at = self.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if current_time.tzinfo is None:
+            current_time = current_time.replace(tzinfo=UTC)
+        return current_time >= expires_at
 
     def mark_completed(self, completed_at: datetime | None = None) -> UploadSession:
         """Transiciona la sesión a COMPLETED una vez confirmada la presencia en S3."""

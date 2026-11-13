@@ -334,6 +334,16 @@ class UploadSessionModel(Base):
     document: Mapped[DocumentModel] = relationship("DocumentModel")
 
     def to_domain(self) -> UploadSession:
+        expires_at = self.expires_at
+        if expires_at is not None and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        created_at = self.created_at
+        if created_at is not None and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=UTC)
+        updated_at = self.updated_at
+        if updated_at is not None and updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=UTC)
+
         return UploadSession(
             id=self.id,
             workspace_id=self.workspace_id,
@@ -344,9 +354,9 @@ class UploadSessionModel(Base):
             expected_content_type=self.expected_content_type,
             expected_checksum_sha256=self.expected_checksum_sha256,
             status=UploadSessionStatus(self.status),
-            expires_at=self.expires_at,
-            created_at=self.created_at,
-            updated_at=self.updated_at,
+            expires_at=expires_at,
+            created_at=created_at,
+            updated_at=updated_at,
         )
 
     @classmethod

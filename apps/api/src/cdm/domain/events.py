@@ -18,9 +18,10 @@ from uuid import UUID
 from cdm.domain.errors import InvalidS3EventError
 
 # Patrón canónico de almacenamiento particionado por tenant:
-# tenants/<workspace_id>/documents/<document_id>/<opaque_key>.<ext>
+# workspaces/<workspace_id>/documents/<document_id>/<opaque_key>.<ext>
+# o legacy tenants/<workspace_id>/documents/...
 _TENANT_DOCUMENT_KEY_REGEX = re.compile(
-    r"^tenants/([a-fA-F0-9\-]{36})/documents/([a-fA-F0-9\-]{36})/(.+)$"
+    r"^(?:workspaces|tenants)/([a-fA-F0-9\-]{36})/documents/([a-fA-F0-9\-]{36})/(.+)$"
 )
 
 
