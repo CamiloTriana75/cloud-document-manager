@@ -107,4 +107,25 @@ describe('WorkspaceMembersComponent', () => {
     expect(component.inviteError()).toBe('El usuario ya es miembro.');
     expect(component.isSubmitting()).toBe(false);
   });
+
+  it('muestra resumen y tabla con avatar, rol y estado (CDM-126)', () => {
+    workspaceService.members.set(mockMembers);
+    const fixture = TestBed.createComponent(WorkspaceMembersComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('h1')?.textContent).toContain('Miembros de Espacio Prueba');
+    expect(el.querySelector('tbody app-avatar')?.textContent?.trim()).toBe('OU');
+    expect(el.querySelector('tbody .role-owner')?.textContent).toContain('OWNER');
+    expect(el.querySelector('tbody')?.textContent).toContain('Activo');
+    expect(el.querySelector('.summary')?.textContent).toContain('1');
+  });
+
+  it('oculta la invitación a quien no administra (CDM-126)', () => {
+    workspaceService.activeWorkspace.update((ws) => (ws ? { ...ws, role: 'VIEWER' } : ws));
+    const fixture = TestBed.createComponent(WorkspaceMembersComponent);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).querySelector('#member-email')).toBeNull();
+  });
 });
