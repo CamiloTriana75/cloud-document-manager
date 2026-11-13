@@ -9,6 +9,11 @@ export const routes: Routes = [
     title: 'CDM — Cloud Document Manager',
   },
   {
+    path: 'home',
+    redirectTo: '',
+    pathMatch: 'full',
+  },
+  {
     path: 'auth/login',
     loadComponent: () =>
       import('./pages/auth/login/login').then((m) => m.LoginComponent),

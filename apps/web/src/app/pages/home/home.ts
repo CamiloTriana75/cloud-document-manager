@@ -1,8 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { RouterLink } from '@angular/router';
 
 import { HealthService } from '../../core/api/health.service';
 import { HealthStatus } from '../../core/api/health';
+import { AuthService } from '../../core/auth/auth.service';
+import { WorkspaceService } from '../../core/workspaces/workspace.service';
 
 type HomeState =
   | { kind: 'loading' }
@@ -11,11 +15,15 @@ type HomeState =
 
 @Component({
   selector: 'app-home',
+  standalone: true,
+  imports: [CommonModule, RouterLink],
   templateUrl: './home.html',
   styleUrl: './home.css',
 })
 export class Home {
   private readonly healthService = inject(HealthService);
+  readonly authService = inject(AuthService);
+  readonly workspaceService = inject(WorkspaceService);
 
   readonly state = signal<HomeState>({ kind: 'loading' });
   readonly isLoading = computed(() => this.state().kind === 'loading');
