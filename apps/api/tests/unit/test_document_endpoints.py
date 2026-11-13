@@ -175,3 +175,75 @@ def test_document_crud_flow_and_role_permissions(test_client: TestClient, sqlite
     list_after_del = test_client.get(f"/api/v1/workspaces/{ws.id}/documents")
     assert list_after_del.status_code == 200
     assert len(list_after_del.json()["data"]) == 0
+
+
+def test_list_documents_filtering_by_status(test_client: TestClient, sqlite_session: Session):
+    """Filtra documentos por su estado de procesamiento (CDM-37)."""
+    user = UserModel(id=uuid4(), cognito_sub="sub-filter", email="filter@test.com")
+    ws = WorkspaceModel(id=uuid4(), name="Filter WS", slug="filter-ws", created_by=user.id)
+    membership = WorkspaceMembershipModel(
+        id=uuid4(), workspace_id=ws.id, user_id=user.id, role="MEMBER", status="ACTIVE"
+    )
+
+    doc_ready = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws.id,
+        uploaded_by=user.id,
+        original_filename="ready.pdf",
+        storage_key=f"workspaces/{ws.id}/ready.pdf",
+        content_type="application/pdf",
+        size_bytes=1000,
+        status=DocumentStatus.READY.value,
+        technical_metadata={"s3_etag": "tag1"},
+    )
+    doc_failed = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws.id,
+        uploaded_by=user.id,
+        original_filename="failed.pdf",
+        storage_key=f"workspaces/{ws.id}/failed.pdf",
+        content_type="application/pdf",
+        size_bytes=500,
+        status=DocumentStatus.FAILED.value,
+        technical_metadata={"failure_reason": "Archivo no legible."},
+    )
+    doc_processing = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws.id,
+        uploaded_by=user.id,
+        original_filename="proc.pdf",
+        storage_key=f"workspaces/{ws.id}/proc.pdf",
+        content_type="application/pdf",
+        size_bytes=800,
+        status=DocumentStatus.PROCESSING.value,
+    )
+
+    sqlite_session.add_all([user, ws, membership, doc_ready, doc_failed, doc_processing])
+    sqlite_session.commit()
+
+    test_client.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        cognito_sub="sub-filter", email="filter@test.com"
+    )
+
+    # 1. Sin filtro: retorna los 3 documentos
+    res_all = test_client.get(f"/api/v1/workspaces/{ws.id}/documents")
+    assert res_all.status_code == 200
+    assert len(res_all.json()["data"]) == 3
+
+    # 2. Filtro status=READY: retorna solo doc_ready
+    res_ready = test_client.get(f"/api/v1/workspaces/{ws.id}/documents?status=READY")
+    assert res_ready.status_code == 200
+    assert len(res_ready.json()["data"]) == 1
+    assert res_ready.json()["data"][0]["original_filename"] == "ready.pdf"
+    assert res_ready.json()["data"][0]["status"] == "READY"
+    assert res_ready.json()["data"][0]["failure_reason"] is None
+
+    # 3. Filtro status=FAILED: retorna doc_failed con su razón segura de fallo
+    res_failed = test_client.get(f"/api/v1/workspaces/{ws.id}/documents?status=FAILED")
+    assert res_failed.status_code == 200
+    assert len(res_failed.json()["data"]) == 1
+    failed_item = res_failed.json()["data"][0]
+    assert failed_item["original_filename"] == "failed.pdf"
+    assert failed_item["status"] == "FAILED"
+    assert failed_item["failure_reason"] == "Archivo no legible."
+    assert "updated_at" in failed_item

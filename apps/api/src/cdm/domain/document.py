@@ -40,6 +40,9 @@ _FORBIDDEN_BACKWARD_TRANSITIONS: dict[DocumentStatus, set[DocumentStatus]] = {
     DocumentStatus.UPLOADED: {
         DocumentStatus.PENDING_UPLOAD,
     },
+    DocumentStatus.FAILED: {
+        DocumentStatus.PENDING_UPLOAD,
+    },
     DocumentStatus.DELETED: {
         DocumentStatus.PENDING_UPLOAD,
         DocumentStatus.UPLOADED,
@@ -118,6 +121,75 @@ class Document:
     def is_deleted(self) -> bool:
         """Determina si el documento ha sido eliminado lógicamente."""
         return self.deleted_at is not None or self.status == DocumentStatus.DELETED
+
+    @property
+    def failure_reason(self) -> str | None:
+        """Razón segura de fallo si el documento se encuentra en estado FAILED."""
+        if self.status != DocumentStatus.FAILED:
+            return None
+        reason = self.technical_metadata.get("failure_reason")
+        return str(reason) if reason else "Error durante el procesamiento del documento."
+
+    def mark_failed(self, reason: str, failed_at: datetime | None = None) -> Document:
+        """Marca el documento como FAILED con razón de error segura (sin stack traces)."""
+        if self.is_deleted:
+            raise InvalidDocumentDataError(
+                "No se puede marcar como fallido un documento eliminado."
+            )
+
+        now = failed_at or datetime.now(UTC)
+        # Sanitizar para evitar volcado accidental de stack traces
+        first_line = reason.strip().split("\n")[0][:255] if reason else ""
+        clean_reason = first_line or "Error durante el procesamiento."
+
+        tech_meta = dict(self.technical_metadata)
+        tech_meta["failure_reason"] = clean_reason
+        tech_meta["failed_at"] = now.isoformat()
+
+        return Document(
+            id=self.id,
+            workspace_id=self.workspace_id,
+            uploaded_by=self.uploaded_by,
+            original_filename=self.original_filename,
+            storage_key=self.storage_key,
+            content_type=self.content_type,
+            size_bytes=self.size_bytes,
+            checksum_sha256=self.checksum_sha256,
+            status=DocumentStatus.FAILED,
+            technical_metadata=tech_meta,
+            created_at=self.created_at,
+            updated_at=now,
+            deleted_at=self.deleted_at,
+        )
+
+    def retry_processing(self, retried_at: datetime | None = None) -> Document:
+        """Transiciona un documento en estado FAILED a PROCESSING para reintento controlado."""
+        if self.status != DocumentStatus.FAILED:
+            raise InvalidDocumentDataError(
+                f"Solo documentos en FAILED pueden reintentarse (actual: {self.status.value})."
+            )
+        now = retried_at or datetime.now(UTC)
+        tech_meta = dict(self.technical_metadata)
+        current_retries = int(tech_meta.get("retry_count", 0)) + 1
+        tech_meta["retry_count"] = current_retries
+        tech_meta["last_retry_at"] = now.isoformat()
+        tech_meta.pop("failure_reason", None)
+
+        return Document(
+            id=self.id,
+            workspace_id=self.workspace_id,
+            uploaded_by=self.uploaded_by,
+            original_filename=self.original_filename,
+            storage_key=self.storage_key,
+            content_type=self.content_type,
+            size_bytes=self.size_bytes,
+            checksum_sha256=self.checksum_sha256,
+            status=DocumentStatus.PROCESSING,
+            technical_metadata=tech_meta,
+            created_at=self.created_at,
+            updated_at=now,
+            deleted_at=self.deleted_at,
+        )
 
     def mark_deleted(self, deleted_at: datetime | None = None) -> Document:
         """Genera una copia del documento marcada como eliminada lógicamente."""

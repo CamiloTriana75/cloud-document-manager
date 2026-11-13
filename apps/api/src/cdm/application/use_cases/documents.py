@@ -47,6 +47,7 @@ class DocumentDetailDTO:
     technical_metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+    failure_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +84,7 @@ def _to_dto(doc: Document) -> DocumentDetailDTO:
         technical_metadata=doc.technical_metadata,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
+        failure_reason=doc.failure_reason,
     )
 
 
@@ -97,6 +99,7 @@ class ListDocumentsUseCase:
         tenant: TenantContext,
         limit: int = 50,
         offset: int = 0,
+        status: DocumentStatus | None = None,
     ) -> DocumentListDTO:
         # Cualquier miembro del workspace (incluso VIEWER) puede listar el catálogo
         tenant.require_role(WorkspaceRole.VIEWER)
@@ -106,10 +109,12 @@ class ListDocumentsUseCase:
             limit=limit,
             offset=offset,
             include_deleted=False,
+            status=status,
         )
         total = self._doc_repo.count_by_workspace(
             workspace_id=tenant.workspace_id,
             include_deleted=False,
+            status=status,
         )
 
         return DocumentListDTO(

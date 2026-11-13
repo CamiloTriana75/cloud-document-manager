@@ -101,6 +101,7 @@ class DocumentResponse(BaseModel):
     technical_metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+    failure_reason: str | None = None
 
 
 class DownloadUrlRequest(BaseModel):
@@ -161,13 +162,17 @@ class EnvelopeDelete(BaseModel):
 )
 def list_documents(
     tenant: Annotated[TenantContext, Depends(get_tenant_context)],
-    pagination: Annotated[PaginationParams, Query()],
+    pagination: Annotated[PaginationParams, Depends()],
     use_case: Annotated[ListDocumentsUseCase, Depends(get_list_documents_use_case)],
+    status: Annotated[
+        DocumentStatus | None, Query(description="Filtrar por estado del documento")
+    ] = None,
 ) -> EnvelopeDocumentList:
     result = use_case.execute(
         tenant=tenant,
         limit=pagination.limit,
         offset=pagination.offset,
+        status=status,
     )
     return EnvelopeDocumentList(
         data=[
@@ -184,6 +189,7 @@ def list_documents(
                 technical_metadata=d.technical_metadata,
                 created_at=d.created_at,
                 updated_at=d.updated_at,
+                failure_reason=d.failure_reason,
             )
             for d in result.items
         ],
@@ -233,6 +239,7 @@ def create_document(
             technical_metadata=doc.technical_metadata,
             created_at=doc.created_at,
             updated_at=doc.updated_at,
+            failure_reason=doc.failure_reason,
         )
     )
 
@@ -267,6 +274,7 @@ def get_document_detail(
             technical_metadata=doc.technical_metadata,
             created_at=doc.created_at,
             updated_at=doc.updated_at,
+            failure_reason=doc.failure_reason,
         )
     )
 
@@ -351,5 +359,6 @@ def complete_document_upload(
             technical_metadata=doc.technical_metadata,
             created_at=doc.created_at,
             updated_at=doc.updated_at,
+            failure_reason=doc.failure_reason,
         )
     )

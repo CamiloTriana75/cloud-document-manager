@@ -9,6 +9,7 @@ import { catchError, map, Observable, of, switchMap } from 'rxjs';
 
 import {
   DocumentItem,
+  DocumentStatus,
   DownloadUrlResponse,
   UploadProgressState,
   UploadSessionRequest,
@@ -219,22 +220,50 @@ export class DocumentService {
   }
 
   /**
-   * Consulta el catálogo de documentos del workspace con paginación.
+   * Consulta el catálogo de documentos del workspace con paginación y filtro opcional por estado.
    */
   listDocuments(
     workspaceId: string,
     limit = 20,
-    offset = 0
+    offset = 0,
+    status?: DocumentStatus
   ): Observable<{ items: DocumentItem[]; total: number }> {
+    let url = `/api/v1/workspaces/${workspaceId}/documents?limit=${limit}&offset=${offset}`;
+    if (status) {
+      url += `&status=${status}`;
+    }
     return this.http
-      .get<ApiListEnvelope<DocumentItem>>(
-        `/api/v1/workspaces/${workspaceId}/documents?limit=${limit}&offset=${offset}`
-      )
+      .get<ApiListEnvelope<DocumentItem>>(url)
       .pipe(
         map((res) => ({
           items: res.data,
           total: res.pagination.total,
         }))
       );
+  }
+
+  /**
+   * Consulta el detalle y metadatos técnicos de un documento específico.
+   */
+  getDocument(workspaceId: string, documentId: string): Observable<DocumentItem> {
+    return this.http
+      .get<ApiEnvelope<DocumentItem>>(
+        `/api/v1/workspaces/${workspaceId}/documents/${documentId}`
+      )
+      .pipe(map((res) => res.data));
+  }
+
+  /**
+   * Elimina lógicamente un documento (requiere rol EDITOR o superior).
+   */
+  deleteDocument(
+    workspaceId: string,
+    documentId: string
+  ): Observable<{ message: string }> {
+    return this.http
+      .delete<ApiEnvelope<{ message: string }>>(
+        `/api/v1/workspaces/${workspaceId}/documents/${documentId}`
+      )
+      .pipe(map((res) => res.data));
   }
 }
