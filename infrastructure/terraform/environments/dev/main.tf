@@ -138,3 +138,16 @@ module "lambda_worker" {
 
   tags = local.tags
 }
+
+# Observabilidad, métricas y alarmas CloudWatch (CDM-52)
+module "observability" {
+  source = "../../modules/observability-cloudwatch"
+
+  project_name         = var.project_name
+  environment          = var.environment
+  api_function_name    = module.lambda_api.function_name
+  worker_function_name = module.lambda_worker.function_name
+  dlq_queue_name       = module.sqs_worker_queue.dlq_name
+
+  tags = local.tags
+}

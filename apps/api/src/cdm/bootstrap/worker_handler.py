@@ -22,6 +22,7 @@ from cdm.adapters.outbound.storage.s3_storage import S3StorageAdapter
 from cdm.application.use_cases.process_document_event import (
     ProcessDocumentEventUseCase,
 )
+from cdm.config.logging import clear_log_context, configure_logging, set_log_context
 from cdm.config.settings import Settings, load_settings
 from cdm.domain.errors import InvalidS3EventError
 from cdm.domain.events import parse_s3_event_records
@@ -51,6 +52,7 @@ def process_sqs_event(
         message_id = record.get("messageId", "")
         body = record.get("body", "")
 
+        set_log_context(request_id=message_id)
         try:
             # 1. Parsear el evento S3 contenido en el cuerpo del mensaje SQS
             s3_records = parse_s3_event_records(body)
@@ -76,6 +78,8 @@ def process_sqs_event(
             )
             if message_id:
                 batch_item_failures.append({"itemIdentifier": message_id})
+        finally:
+            clear_log_context()
 
     return {"batchItemFailures": batch_item_failures}
 
@@ -83,6 +87,7 @@ def process_sqs_event(
 def handler(event: dict[str, Any], context: Any) -> dict[str, list[dict[str, str]]]:
     """Punto de entrada oficial para AWS Lambda Trigger de SQS."""
     settings: Settings = load_settings()
+    configure_logging(settings.log_level)
 
     engine = create_db_engine(settings)
     session_factory = create_session_factory(engine)
