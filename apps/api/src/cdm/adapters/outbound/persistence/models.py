@@ -10,11 +10,12 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
+from cdm.domain.audit import AuditAction, AuditEvent, ResourceType
 from cdm.domain.document import Document, DocumentStatus
 from cdm.domain.upload_session import UploadSession, UploadSessionStatus
 from cdm.domain.workspace import (
@@ -248,6 +249,11 @@ class DocumentModel(Base):
 
     workspace: Mapped[WorkspaceModel] = relationship("WorkspaceModel", back_populates="documents")
 
+    __table_args__ = (
+        Index("ix_documents_workspace_created", "workspace_id", "created_at"),
+        Index("ix_documents_workspace_status", "workspace_id", "status"),
+    )
+
     def to_domain(self) -> Document:
         """Convierte este registro ORM a la entidad de dominio."""
         return Document(
@@ -358,4 +364,67 @@ class UploadSessionModel(Base):
             expires_at=session.expires_at,
             created_at=session.created_at,
             updated_at=session.updated_at,
+        )
+
+
+class AuditEventModel(Base):
+    """Modelo ORM para la tabla audit_events (CDM-40 / AGENTS.md §10)."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID_TYPE, primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_TYPE, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID_TYPE, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    action: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    resource_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    resource_id: Mapped[uuid.UUID | None] = mapped_column(UUID_TYPE, nullable=True, index=True)
+    details: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        server_default=func.now(),
+        index=True,
+    )
+
+    workspace: Mapped[WorkspaceModel] = relationship("WorkspaceModel")
+    actor: Mapped[UserModel | None] = relationship("UserModel")
+
+    __table_args__ = (
+        Index("ix_audit_events_workspace_created", "workspace_id", "created_at"),
+        Index("ix_audit_events_resource", "resource_type", "resource_id"),
+    )
+
+    def to_domain(self) -> AuditEvent:
+        """Convierte este registro ORM a la entidad de dominio."""
+        return AuditEvent(
+            id=self.id,
+            workspace_id=self.workspace_id,
+            action=AuditAction(self.action),
+            resource_type=ResourceType(self.resource_type),
+            actor_user_id=self.actor_user_id,
+            resource_id=self.resource_id,
+            details=dict(self.details) if self.details else {},
+            ip_address=self.ip_address,
+            created_at=self.created_at,
+        )
+
+    @classmethod
+    def from_domain(cls, event: AuditEvent) -> AuditEventModel:
+        """Crea una instancia ORM a partir de la entidad pura de dominio."""
+        return cls(
+            id=event.id,
+            workspace_id=event.workspace_id,
+            actor_user_id=event.actor_user_id,
+            action=event.action.value,
+            resource_type=event.resource_type.value,
+            resource_id=event.resource_id,
+            details=event.details,
+            ip_address=event.ip_address,
+            created_at=event.created_at,
         )

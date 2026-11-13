@@ -14,17 +14,20 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from cdm.adapters.outbound.persistence.models import (
+    AuditEventModel,
     DocumentModel,
     UserModel,
     WorkspaceMembershipModel,
     WorkspaceModel,
 )
+from cdm.application.ports.audit_repository import AuditRepositoryPort
 from cdm.application.ports.document_repository import DocumentRepositoryPort
 from cdm.application.ports.workspace_repository import (
     MembershipRepositoryPort,
     UserRepositoryPort,
     WorkspaceRepositoryPort,
 )
+from cdm.domain.audit import AuditEvent
 from cdm.domain.document import Document, DocumentStatus
 from cdm.domain.workspace import MembershipStatus, User, Workspace, WorkspaceMembership
 
@@ -259,3 +262,41 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         model.updated_at = now
         self._session.flush()
         return True
+
+
+class SqlAlchemyAuditRepository(AuditRepositoryPort):
+    """Implementación de persistencia de eventos de auditoría con SQLAlchemy (CDM-40)."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def save(self, event: AuditEvent) -> AuditEvent:
+        model = AuditEventModel.from_domain(event)
+        self._session.add(model)
+        self._session.flush()
+        return model.to_domain()
+
+    def list_by_workspace(
+        self,
+        workspace_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[AuditEvent]:
+        stmt = (
+            select(AuditEventModel)
+            .where(AuditEventModel.workspace_id == workspace_id)
+            .order_by(AuditEventModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        models = self._session.scalars(stmt).all()
+        return [m.to_domain() for m in models]
+
+    def count_by_workspace(self, workspace_id: UUID) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(AuditEventModel)
+            .where(AuditEventModel.workspace_id == workspace_id)
+        )
+        count = self._session.scalar(stmt)
+        return count or 0

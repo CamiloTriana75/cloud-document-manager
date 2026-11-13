@@ -33,7 +33,8 @@ def test_migraciones_alembic_registradas() -> None:
             rows: list[str] = list(
                 conn.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
             )
-            assert "0001" in rows
+            assert len(rows) > 0
+            assert rows[0] in ("0001", "0002", "0003", "0004", "0005")
     except SQLAlchemyError as exc:
         pytest.skip(f"PostgreSQL no disponible localmente: {exc}")
     finally:
