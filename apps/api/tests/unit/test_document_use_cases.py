@@ -113,7 +113,12 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
             if self._filter_doc(doc, workspace_id, include_deleted, status, filters)
         )
 
-    def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:
+    def soft_delete(
+        self,
+        workspace_id: UUID,
+        document_id: UUID,
+        deleted_by: UUID | None = None,
+    ) -> bool:
         doc = self.get_by_id(workspace_id, document_id, include_deleted=False)
         if doc is None:
             return False

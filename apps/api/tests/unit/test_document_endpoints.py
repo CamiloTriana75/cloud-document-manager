@@ -16,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 from cdm.adapters.inbound.http.auth import get_current_user
 from cdm.adapters.inbound.http.dependencies import get_db_session
 from cdm.adapters.outbound.persistence.models import (
+    AuditEventModel,
     Base,
     DocumentModel,
     UserModel,
@@ -352,3 +353,107 @@ def test_list_documents_multicriteria_filters_and_pagination(
     body_p2 = res_page2.json()
     assert len(body_p2["data"]) == 1
     assert body_p2["pagination"]["has_more"] is False
+
+
+def test_document_detail_and_soft_delete_lifecycle_and_audit(
+    test_client: TestClient, sqlite_session: Session
+):
+    """Criterios de aceptación CDM-43:
+
+    - Detalle muestra metadatos completos y estado actual sin exponer storage_key.
+    - Eliminación lógica con actor y fecha; operación autorizada por rol (EDITOR/ADMIN/OWNER).
+    - Roles no autorizados (MEMBER/VIEWER) reciben 403 Forbidden.
+    - Documento eliminado deja de aparecer en listado de catálogo y detalle (404 Not Found).
+    - Evento de auditoría audit_events registrado transaccionalmente.
+    - Aislamiento anti-IDOR garantizado.
+    """
+    owner = UserModel(id=uuid4(), cognito_sub="sub-owner-43", email="owner43@test.com")
+    editor = UserModel(id=uuid4(), cognito_sub="sub-editor-43", email="editor43@test.com")
+    member = UserModel(id=uuid4(), cognito_sub="sub-member-43", email="member43@test.com")
+    ws = WorkspaceModel(id=uuid4(), name="WS Lifecycle", slug="ws-life", created_by=owner.id)
+
+    m_owner = WorkspaceMembershipModel(
+        id=uuid4(), workspace_id=ws.id, user_id=owner.id, role="OWNER", status="ACTIVE"
+    )
+    m_editor = WorkspaceMembershipModel(
+        id=uuid4(), workspace_id=ws.id, user_id=editor.id, role="EDITOR", status="ACTIVE"
+    )
+    m_member = WorkspaceMembershipModel(
+        id=uuid4(), workspace_id=ws.id, user_id=member.id, role="MEMBER", status="ACTIVE"
+    )
+
+    doc = DocumentModel(
+        id=uuid4(),
+        workspace_id=ws.id,
+        uploaded_by=member.id,
+        original_filename="presupuesto_2026.pdf",
+        storage_key=f"tenants/{ws.id}/docs/budget.pdf",
+        content_type="application/pdf",
+        size_bytes=4096,
+        checksum_sha256="b" * 64,
+        status=DocumentStatus.READY.value,
+        technical_metadata={"page_count": 12, "author": "Finanzas"},
+    )
+
+    sqlite_session.add_all([owner, editor, member, ws, m_owner, m_editor, m_member, doc])
+    sqlite_session.commit()
+
+    # 1. Detalle por usuario con rol MEMBER (autorizado para lectura)
+    test_client.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        cognito_sub="sub-member-43", email="member43@test.com"
+    )
+
+    detail_res = test_client.get(f"/api/v1/workspaces/{ws.id}/documents/{doc.id}")
+    assert detail_res.status_code == 200
+    detail_data = detail_res.json()["data"]
+    assert detail_data["id"] == str(doc.id)
+    assert detail_data["original_filename"] == "presupuesto_2026.pdf"
+    assert detail_data["status"] == "READY"
+    assert detail_data["technical_metadata"]["page_count"] == 12
+    assert detail_data["storage_key"] is None  # Seguridad: no exponer clave interna física
+
+    # 2. Intento de eliminación por MEMBER (no autorizado según ADR-0001 -> 403)
+    del_forbidden = test_client.delete(f"/api/v1/workspaces/{ws.id}/documents/{doc.id}")
+    assert del_forbidden.status_code == 403
+    assert del_forbidden.json()["error"]["code"] == "permission_denied"
+
+    # 3. Eliminación lógica exitosa por EDITOR (rol autorizado)
+    test_client.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(
+        cognito_sub="sub-editor-43", email="editor43@test.com"
+    )
+
+    del_res = test_client.delete(f"/api/v1/workspaces/{ws.id}/documents/{doc.id}")
+    assert del_res.status_code == 200
+    assert "Documento eliminado" in del_res.json()["data"]["message"]
+
+    # 4. Verificación en base de datos: soft delete y metadatos del actor
+    sqlite_session.expire_all()
+    db_doc = sqlite_session.get(DocumentModel, doc.id)
+    assert db_doc is not None
+    assert db_doc.status == DocumentStatus.DELETED.value
+    assert db_doc.deleted_at is not None
+    assert db_doc.technical_metadata.get("deleted_by") == str(editor.id)
+    assert "deleted_at" in db_doc.technical_metadata
+
+    # 5. Verificación de evento de auditoría en audit_events (CDM-40)
+    audit_evt = (
+        sqlite_session.query(AuditEventModel)
+        .filter_by(workspace_id=ws.id, resource_id=doc.id, action="DOCUMENT_DELETED")
+        .first()
+    )
+    assert audit_evt is not None
+    assert audit_evt.actor_user_id == editor.id
+    assert audit_evt.resource_type == "DOCUMENT"
+    assert audit_evt.details.get("original_filename") == "presupuesto_2026.pdf"
+    assert audit_evt.details.get("actor_role") == "EDITOR"
+
+    # 6. El documento eliminado deja de aparecer en catálogo normal
+    list_res = test_client.get(f"/api/v1/workspaces/{ws.id}/documents")
+    assert list_res.status_code == 200
+    assert len(list_res.json()["data"]) == 0
+    assert list_res.json()["pagination"]["total"] == 0
+
+    # 7. El documento eliminado ya no puede consultarse en detalle (retorna 404)
+    detail_after = test_client.get(f"/api/v1/workspaces/{ws.id}/documents/{doc.id}")
+    assert detail_after.status_code == 404
+    assert detail_after.json()["error"]["code"] == "document_not_found"
