@@ -303,3 +303,68 @@
   padding: var(--space-1) var(--space-3);
   font-size: var(--font-size-sm);
 }
+
+/* Alerta de advertencia (permisos) */
+.alert-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: #fefce8;
+  border: 1px solid #fef08a;
+  border-radius: var(--radius-sm);
+  color: #854d0e;
+  margin-bottom: var(--space-4);
+}
+
+.alert-heading {
+  display: block;
+  font-size: 0.9375rem;
+  margin-bottom: 2px;
+}
+
+.alert-text {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* Dropzone deshabilitado */
+.dropzone-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+}
+
+.disabled-label {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Cabecera y badges en resultado */
+.result-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.result-heading-row .result-title {
+  margin: 0;
+}
+
+.status-indicator-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.polling-note {
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--color-text-secondary);
+}
