@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from cdm.adapters.outbound.persistence.models import (
@@ -28,7 +28,7 @@ from cdm.application.ports.workspace_repository import (
     WorkspaceRepositoryPort,
 )
 from cdm.domain.audit import AuditEvent
-from cdm.domain.document import Document, DocumentStatus
+from cdm.domain.document import Document, DocumentQueryFilter, DocumentStatus
 from cdm.domain.workspace import MembershipStatus, User, Workspace, WorkspaceMembership
 
 
@@ -200,49 +200,84 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         model = self._session.scalars(stmt).first()
         return model.to_domain() if model else None
 
+    @staticmethod
+    def _build_document_query(
+        workspace_id: UUID,
+        filters: DocumentQueryFilter | None = None,
+        include_deleted: bool = False,
+        status: DocumentStatus | None = None,
+    ) -> Select[DocumentModel]:
+        stmt = select(DocumentModel).where(DocumentModel.workspace_id == workspace_id)
+
+        # 1. Filtro de estado
+        effective_status = filters.status if filters and filters.status else status
+        if effective_status is not None:
+            stmt = stmt.where(DocumentModel.status == effective_status.value)
+
+        # 2. Manejo de borrado lógico
+        effective_include_deleted = filters.include_deleted if filters else include_deleted
+        if effective_status is None and not effective_include_deleted:
+            stmt = stmt.where(
+                DocumentModel.deleted_at.is_(None),
+                DocumentModel.status != DocumentStatus.DELETED.value,
+            )
+
+        if filters:
+            # 3. Búsqueda por término en original_filename
+            if filters.search_term and filters.search_term.strip():
+                clean_term = filters.search_term.strip()
+                stmt = stmt.where(DocumentModel.original_filename.ilike(f"%{clean_term}%"))
+
+            # 4. Filtro por tipo MIME
+            if filters.content_type and filters.content_type.strip():
+                clean_type = filters.content_type.strip().lower()
+                stmt = stmt.where(DocumentModel.content_type == clean_type)
+
+            # 5. Filtro por usuario creador (uploaded_by)
+            if filters.uploaded_by is not None:
+                stmt = stmt.where(DocumentModel.uploaded_by == filters.uploaded_by)
+
+            # 6. Rango temporal de fechas de creación
+            if filters.created_after is not None:
+                stmt = stmt.where(DocumentModel.created_at >= filters.created_after)
+            if filters.created_before is not None:
+                stmt = stmt.where(DocumentModel.created_at <= filters.created_before)
+
+        return stmt
+
     def list_by_workspace(
         self,
         workspace_id: UUID,
+        filters: DocumentQueryFilter | None = None,
         limit: int = 50,
         offset: int = 0,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
     ) -> list[Document]:
-        stmt = (
-            select(DocumentModel)
-            .where(DocumentModel.workspace_id == workspace_id)
-            .order_by(DocumentModel.created_at.desc())
-            .limit(limit)
-            .offset(offset)
+        stmt = self._build_document_query(
+            workspace_id=workspace_id,
+            filters=filters,
+            include_deleted=include_deleted,
+            status=status,
         )
-        if status is not None:
-            stmt = stmt.where(DocumentModel.status == status.value)
-        elif not include_deleted:
-            stmt = stmt.where(
-                DocumentModel.deleted_at.is_(None),
-                DocumentModel.status != DocumentStatus.DELETED.value,
-            )
+        stmt = stmt.order_by(DocumentModel.created_at.desc()).limit(limit).offset(offset)
         models = self._session.scalars(stmt).all()
         return [m.to_domain() for m in models]
 
     def count_by_workspace(
         self,
         workspace_id: UUID,
+        filters: DocumentQueryFilter | None = None,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
     ) -> int:
-        stmt = (
-            select(func.count())
-            .select_from(DocumentModel)
-            .where(DocumentModel.workspace_id == workspace_id)
+        query = self._build_document_query(
+            workspace_id=workspace_id,
+            filters=filters,
+            include_deleted=include_deleted,
+            status=status,
         )
-        if status is not None:
-            stmt = stmt.where(DocumentModel.status == status.value)
-        elif not include_deleted:
-            stmt = stmt.where(
-                DocumentModel.deleted_at.is_(None),
-                DocumentModel.status != DocumentStatus.DELETED.value,
-            )
+        stmt = select(func.count()).select_from(query.subquery())
         count = self._session.scalar(stmt)
         return count or 0
 

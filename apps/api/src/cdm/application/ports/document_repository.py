@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from cdm.domain.document import Document, DocumentStatus
+from cdm.domain.document import Document, DocumentQueryFilter, DocumentStatus
 
 
 class DocumentRepositoryPort(Protocol):
@@ -35,17 +35,19 @@ class DocumentRepositoryPort(Protocol):
     def list_by_workspace(
         self,
         workspace_id: UUID,
+        filters: DocumentQueryFilter | None = None,
         limit: int = 50,
         offset: int = 0,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
     ) -> list[Document]:
-        """Lista documentos de un workspace con paginación y filtro opcional por estado."""
+        """Lista documentos de un workspace con paginación y filtros opcionales."""
         ...
 
     def count_by_workspace(
         self,
         workspace_id: UUID,
+        filters: DocumentQueryFilter | None = None,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
     ) -> int:
