@@ -30,6 +30,7 @@ module "lambda_api" {
   memory_size        = var.lambda_memory_mb
   timeout            = 15
   log_retention_days = var.log_retention_days
+  s3_bucket_arn      = module.s3_document_store.bucket_arn
 
   environment_variables = {
     ENVIRONMENT           = var.environment
@@ -110,7 +111,7 @@ resource "aws_s3_bucket_notification" "document_events" {
   queue {
     queue_arn     = module.sqs_worker_queue.queue_arn
     events        = ["s3:ObjectCreated:*"]
-    filter_prefix = "tenants/"
+    filter_prefix = "workspaces/"
   }
 
   depends_on = [module.sqs_worker_queue]

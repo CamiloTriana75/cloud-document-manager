@@ -57,6 +57,12 @@ variable "package_path" {
   default     = null
 }
 
+variable "s3_bucket_arn" {
+  description = "ARN del bucket S3 de documentos para acotar la política IAM con menor privilegio (CDM-51)."
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Etiquetas adicionales específicas para la función Lambda."
   type        = map(string)

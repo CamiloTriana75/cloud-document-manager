@@ -44,7 +44,33 @@ resource "aws_iam_role_policy_attachment" "lambda_basic" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# 3. Log Group en CloudWatch con retención controlada para no drenar créditos Free Plan
+# 3. Política S3 least-privilege acotada al tenant (CDM-51 / AGENTS.md §13)
+data "aws_iam_policy_document" "lambda_s3_least_privilege" {
+  count = var.s3_bucket_arn != null ? 1 : 0
+
+  statement {
+    sid    = "AllowS3TenantScopedObjectAccess"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:HeadObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      "${var.s3_bucket_arn}/workspaces/*",
+      "${var.s3_bucket_arn}/tenants/*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "lambda_s3" {
+  count  = var.s3_bucket_arn != null ? 1 : 0
+  name   = "${var.function_name}-s3-tenant-policy"
+  role   = aws_iam_role.lambda_exec.id
+  policy = data.aws_iam_policy_document.lambda_s3_least_privilege[0].json
+}
+
+# 4. Log Group en CloudWatch con retención controlada para no drenar créditos Free Plan
 resource "aws_cloudwatch_log_group" "lambda_logs" {
   name              = "/aws/lambda/${var.function_name}"
   retention_in_days = var.log_retention_days

@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from cdm.adapters.inbound.http import auth, documents, health, upload_sessions, workspaces
 from cdm.adapters.inbound.http.errors import register_error_handlers
+from cdm.config.logging import configure_logging
 from cdm.config.settings import Settings, load_settings
 
 _API_TITLE = "Cloud Document Manager API"
@@ -18,6 +19,7 @@ _API_VERSION = "0.1.0"
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Crea la aplicación FastAPI con su configuración y routers."""
     settings = settings or load_settings()
+    configure_logging(settings.log_level)
     app = FastAPI(title=_API_TITLE, version=_API_VERSION)
     app.dependency_overrides[load_settings] = lambda: settings
     app.add_middleware(

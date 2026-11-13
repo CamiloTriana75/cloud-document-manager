@@ -25,6 +25,7 @@ from cdm.adapters.inbound.http.dependencies import (
 )
 from cdm.adapters.inbound.http.errors import ERROR_RESPONSES
 from cdm.adapters.inbound.http.pagination import PaginationMeta, PaginationParams
+from cdm.adapters.inbound.http.rate_limit import rate_limit_dependency
 from cdm.application.use_cases.documents import (
     AuthorizeDocumentDownloadUseCase,
     CompleteDocumentUploadUseCase,
@@ -330,6 +331,7 @@ def get_document_detail(
     summary="Generar URL temporal de descarga",
     description="Autoriza y genera una URL prefirmada HTTPS para la descarga del binario privado.",
     responses=ERROR_RESPONSES,
+    dependencies=[Depends(rate_limit_dependency())],
 )
 def generate_download_url(
     document_id: Annotated[UUID, Path(description="Identificador del documento")],
