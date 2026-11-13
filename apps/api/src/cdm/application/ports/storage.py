@@ -74,3 +74,14 @@ class StoragePort(Protocol):
         Retorna True si la eliminación fue solicitada/ejecutada con éxito.
         """
         ...
+
+    def get_object_bytes(
+        self,
+        storage_key: str,
+        byte_range: tuple[int, int] | None = None,
+    ) -> bytes | None:
+        """Obtiene los bytes de un objeto o un rango de bytes para análisis de cabeceras (CDM-38).
+
+        Retorna None si el objeto no existe en el almacenamiento.
+        """
+        ...

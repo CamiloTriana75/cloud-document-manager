@@ -19,6 +19,7 @@ from uuid import UUID
 
 from cdm.application.ports.document_repository import DocumentRepositoryPort
 from cdm.application.ports.storage import StoragePort
+from cdm.domain.content_inspection import validate_content_consistency
 from cdm.domain.document import DocumentStatus
 from cdm.domain.events import S3ObjectNotificationRecord
 
@@ -32,6 +33,7 @@ class ProcessingStatus(str, Enum):
     ALREADY_PROCESSED = "ALREADY_PROCESSED"
     SKIPPED_NON_TENANT = "SKIPPED_NON_TENANT"
     SKIPPED_NOT_FOUND = "SKIPPED_NOT_FOUND"
+    VALIDATION_FAILED = "VALIDATION_FAILED"
 
 
 @dataclass(frozen=True)
@@ -143,7 +145,7 @@ class ProcessDocumentEventUseCase:
         if updated_doc.status == DocumentStatus.UPLOADED:
             updated_doc = updated_doc.transition_to(DocumentStatus.PROCESSING)
 
-        # 6. Enriquecimiento de metadatos técnicos (CDM-38 preliminar)
+        # 6. Inspección de contenido y validación técnica (CDM-38)
         tech_meta: dict[str, Any] = dict(updated_doc.technical_metadata)
         tech_meta.update(
             {
@@ -156,12 +158,75 @@ class ProcessDocumentEventUseCase:
             }
         )
 
-        # Actualizar tamaño real si el registrado era 0 o provisional
         final_size = record.size_bytes if record.size_bytes > 0 else updated_doc.size_bytes
+        computed_checksum = updated_doc.checksum_sha256
+
+        # Si el almacenamiento está disponible, inspeccionar bytes para consistencia
+        if self._storage is not None:
+            object_bytes = self._storage.get_object_bytes(record.storage_key)
+
+            if object_bytes is None:
+                # Objeto no encontrado en el bucket S3
+                updated_doc = updated_doc.mark_failed(
+                    "El objeto binario no se encuentra en el almacenamiento."
+                )
+                self._document_repo.save(updated_doc)
+                return ProcessResult(
+                    status=ProcessingStatus.VALIDATION_FAILED,
+                    workspace_id=workspace_id,
+                    document_id=document_id,
+                    storage_key=record.storage_key,
+                    message="Objeto no encontrado en S3 durante la inspección.",
+                )
+
+            # Validar consistencia técnica del contenido sin ejecutarlo ni renderizarlo
+            validation = validate_content_consistency(
+                data=object_bytes,
+                declared_mime=updated_doc.content_type,
+                original_filename=updated_doc.original_filename,
+                expected_checksum=updated_doc.checksum_sha256,
+            )
+
+            if not validation.is_valid:
+                # Fallo permanente de validación: marcar como FAILED
+                updated_doc = updated_doc.mark_failed(
+                    validation.failure_reason or "Discrepancia técnica en el archivo."
+                )
+                fail_meta = dict(updated_doc.technical_metadata)
+                fail_meta.update(
+                    {
+                        "s3_etag": record.etag,
+                        "s3_size_bytes": record.size_bytes,
+                        "mime_detected": validation.detected_mime,
+                        "validation_status": "FAILED",
+                    }
+                )
+                updated_doc = replace(updated_doc, technical_metadata=fail_meta)
+                self._document_repo.save(updated_doc)
+
+                logger.warning(
+                    "Validación fallida para documento ws=%s doc=%s: %s",
+                    workspace_id,
+                    document_id,
+                    validation.failure_reason,
+                )
+                return ProcessResult(
+                    status=ProcessingStatus.VALIDATION_FAILED,
+                    workspace_id=workspace_id,
+                    document_id=document_id,
+                    storage_key=record.storage_key,
+                    message=validation.failure_reason or "Error de consistencia técnica.",
+                )
+
+            # Si es válido, enriquecer con metadatos extraídos
+            if validation.extracted_metadata:
+                tech_meta.update(validation.extracted_metadata)
+            computed_checksum = validation.computed_checksum
 
         updated_doc = replace(
             updated_doc,
             size_bytes=final_size,
+            checksum_sha256=computed_checksum,
             technical_metadata=tech_meta,
         )
 

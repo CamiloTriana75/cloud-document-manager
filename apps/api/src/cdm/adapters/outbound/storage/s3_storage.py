@@ -27,6 +27,7 @@ class S3StorageAdapter(StoragePort):
         self._region = region
         self._endpoint_url = endpoint_url
         self._mock_objects: dict[str, ObjectMetadata] = {}
+        self._mock_data: dict[str, bytes] = {}
 
     def _get_s3_client(self) -> Any:
         import boto3  # type: ignore[import-not-found]
@@ -161,11 +162,43 @@ class S3StorageAdapter(StoragePort):
                 Key=storage_key,
             )
             self._mock_objects.pop(storage_key, None)
+            self._mock_data.pop(storage_key, None)
             return True
         except Exception:
             # Fallback en desarrollo local sin credenciales de AWS
             self._mock_objects.pop(storage_key, None)
+            self._mock_data.pop(storage_key, None)
             return True
+
+    def get_object_bytes(
+        self,
+        storage_key: str,
+        byte_range: tuple[int, int] | None = None,
+    ) -> bytes | None:
+        """Obtiene los bytes del objeto en S3 o almacén simulado (CDM-38)."""
+        try:
+            s3_client = self._get_s3_client()
+            params: dict[str, Any] = {
+                "Bucket": self._bucket_name,
+                "Key": storage_key,
+            }
+            if byte_range is not None:
+                start, end = byte_range
+                params["Range"] = f"bytes={start}-{end}"
+
+            response = s3_client.get_object(**params)
+            return response["Body"].read()  # type: ignore[no-any-return]
+        except Exception as exc:
+            err_code = getattr(exc, "response", {}).get("Error", {}).get("Code", "")
+            if err_code in ("404", "NoSuchKey", "NotFound"):
+                return None
+            data = self._mock_data.get(storage_key)
+            if data is None:
+                return None
+            if byte_range is not None:
+                start, end = byte_range
+                return data[start : end + 1]
+            return data
 
     def register_mock_object(
         self,
@@ -173,6 +206,7 @@ class S3StorageAdapter(StoragePort):
         size_bytes: int,
         content_type: str | None = None,
         etag: str | None = None,
+        data: bytes | None = None,
     ) -> None:
         """Registra un objeto en el almacén simulado para desarrollo local y pruebas."""
         self._mock_objects[storage_key] = ObjectMetadata(
@@ -181,3 +215,5 @@ class S3StorageAdapter(StoragePort):
             content_type=content_type,
             etag=etag or "mock-etag",
         )
+        if data is not None:
+            self._mock_data[storage_key] = data
