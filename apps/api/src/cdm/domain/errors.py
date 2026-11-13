@@ -66,6 +66,12 @@ class ConflictError(DomainError):
     code = "conflict"
 
 
+class MaxRetriesExceededError(ConflictError):
+    """Se ha alcanzado el límite máximo de reintentos permitidos para el documento (CDM-39)."""
+
+    code = "max_retries_exceeded"
+
+
 class WorkspaceNotFoundError(NotFoundError):
     """Workspace inexistente o inaccesible para el usuario actual."""
 

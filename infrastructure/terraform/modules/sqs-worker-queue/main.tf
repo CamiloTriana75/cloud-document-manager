@@ -81,3 +81,22 @@ resource "aws_sqs_queue_policy" "this" {
   queue_url = aws_sqs_queue.this.id
   policy    = data.aws_iam_policy_document.queue_policy.json
 }
+
+# 4. Alarma CloudWatch para monitorizar mensajes en la Dead Letter Queue (CDM-39 / AGENTS.md §12)
+resource "aws_cloudwatch_metric_alarm" "dlq_messages_visible" {
+  alarm_name          = "${local.dlq_name}-messages-visible"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 1
+  alarm_description   = "Alarma cuando hay 1 o mas mensajes en la DLQ (${local.dlq_name}) requiriendo inspeccion o redrive."
+
+  dimensions = {
+    QueueName = aws_sqs_queue.dlq.name
+  }
+
+  tags = var.tags
+}

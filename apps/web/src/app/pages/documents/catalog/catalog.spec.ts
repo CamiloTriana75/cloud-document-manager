@@ -73,6 +73,23 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
       })
     ),
     deleteDocument: vi.fn().mockReturnValue(of({ message: 'Deleted' })),
+    retryDocument: vi.fn().mockReturnValue(
+      of({
+        id: 'doc-failed-3',
+        workspace_id: 'ws-123',
+        uploaded_by: 'user-1',
+        original_filename: 'corrupted.zip',
+        storage_key: 'tenants/ws-123/documents/doc-failed-3/corrupted.zip',
+        content_type: 'application/zip',
+        size_bytes: 2048,
+        status: 'PROCESSING',
+        technical_metadata: { retry_count: 1 },
+        created_at: '2026-11-12T19:09:00Z',
+        updated_at: '2026-11-12T19:15:00Z',
+        failure_reason: null,
+        retry_count: 1,
+      })
+    ),
   };
 
   const mockWorkspaceService = {
@@ -173,5 +190,18 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
 
     component.executeDelete();
     expect(mockDocumentService.deleteDocument).toHaveBeenCalledWith('ws-123', 'doc-failed-3');
+  });
+
+  it('permite reintentar documentos FAILED para usuarios ADMIN/OWNER (CDM-39)', () => {
+    const failedDoc = mockDocuments[2];
+    expect(component.canRetry()).toBe(true);
+
+    component.retryDocument(failedDoc);
+    expect(mockDocumentService.retryDocument).toHaveBeenCalledWith('ws-123', 'doc-failed-3');
+
+    // El documento en la lista debe actualizarse a PROCESSING y retry_count=1
+    const updated = component.documents().find((d) => d.id === 'doc-failed-3');
+    expect(updated?.status).toBe('PROCESSING');
+    expect(updated?.retry_count).toBe(1);
   });
 });

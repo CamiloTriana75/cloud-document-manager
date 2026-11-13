@@ -33,6 +33,7 @@ from cdm.application.use_cases.documents import (
     DeleteDocumentUseCase,
     GetDocumentDetailUseCase,
     ListDocumentsUseCase,
+    RetryDocumentProcessingUseCase,
 )
 from cdm.application.use_cases.upload_sessions import (
     CancelUploadSessionUseCase,
@@ -262,6 +263,16 @@ def get_cleanup_expired_upload_sessions_use_case(
 ) -> CleanupExpiredUploadSessionsUseCase:
     return CleanupExpiredUploadSessionsUseCase(
         upload_session_repo=SqlAlchemyUploadSessionRepository(session),
+        document_repo=SqlAlchemyDocumentRepository(session),
+        storage=storage,
+    )
+
+
+def get_retry_document_processing_use_case(
+    session: Annotated[Session, Depends(get_db_session)],
+    storage: Annotated[StoragePort, Depends(get_storage_port)],
+) -> RetryDocumentProcessingUseCase:
+    return RetryDocumentProcessingUseCase(
         document_repo=SqlAlchemyDocumentRepository(session),
         storage=storage,
     )

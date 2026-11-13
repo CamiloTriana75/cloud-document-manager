@@ -12,7 +12,10 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from cdm.domain.errors import InvalidDocumentDataError
+from cdm.domain.errors import InvalidDocumentDataError, MaxRetriesExceededError
+
+#: Número máximo de reintentos manuales permitidos por documento (CDM-39 / AGENTS.md §12).
+MAX_DOCUMENT_RETRIES: int = 3
 
 
 class DocumentStatus(str, Enum):
@@ -130,6 +133,11 @@ class Document:
         reason = self.technical_metadata.get("failure_reason")
         return str(reason) if reason else "Error durante el procesamiento del documento."
 
+    @property
+    def retry_count(self) -> int:
+        """Número de reintentos ejecutados sobre este documento (CDM-39)."""
+        return int(self.technical_metadata.get("retry_count", 0))
+
     def mark_failed(self, reason: str, failed_at: datetime | None = None) -> Document:
         """Marca el documento como FAILED con razón de error segura (sin stack traces)."""
         if self.is_deleted:
@@ -162,16 +170,25 @@ class Document:
             deleted_at=self.deleted_at,
         )
 
-    def retry_processing(self, retried_at: datetime | None = None) -> Document:
-        """Transiciona un documento en estado FAILED a PROCESSING para reintento controlado."""
+    def retry_processing(
+        self,
+        retried_at: datetime | None = None,
+        max_retries: int = MAX_DOCUMENT_RETRIES,
+    ) -> Document:
+        """Transiciona un documento FAILED a PROCESSING para reintento controlado (CDM-39)."""
         if self.status != DocumentStatus.FAILED:
             raise InvalidDocumentDataError(
                 f"Solo documentos en FAILED pueden reintentarse (actual: {self.status.value})."
             )
-        now = retried_at or datetime.now(UTC)
         tech_meta = dict(self.technical_metadata)
-        current_retries = int(tech_meta.get("retry_count", 0)) + 1
-        tech_meta["retry_count"] = current_retries
+        current_retries = int(tech_meta.get("retry_count", 0))
+        if current_retries >= max_retries:
+            raise MaxRetriesExceededError(
+                f"Se ha superado el límite máximo de {max_retries} reintentos permitidos."
+            )
+
+        now = retried_at or datetime.now(UTC)
+        tech_meta["retry_count"] = current_retries + 1
         tech_meta["last_retry_at"] = now.isoformat()
         tech_meta.pop("failure_reason", None)
 

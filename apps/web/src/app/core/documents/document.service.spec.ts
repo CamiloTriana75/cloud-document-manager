@@ -255,4 +255,18 @@ describe('DocumentService', () => {
     expect(req.request.method).toBe('DELETE');
     req.flush({ data: { message: 'Documento eliminado' } });
   });
+
+  it('retryDocument envía POST al endpoint de reintento y retorna DocumentItem actualizado (CDM-39)', () => {
+    const retriedDoc = { ...mockDocument, status: 'PROCESSING' as const, retry_count: 1 };
+
+    service.retryDocument('ws-1', 'doc-456').subscribe((doc) => {
+      expect(doc.status).toBe('PROCESSING');
+      expect(doc.retry_count).toBe(1);
+    });
+
+    const req = http.expectOne('/api/v1/workspaces/ws-1/documents/doc-456/retry');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({});
+    req.flush({ data: retriedDoc });
+  });
 });

@@ -63,6 +63,13 @@ export class DocumentCatalogComponent implements OnInit {
     return role === 'OWNER' || role === 'ADMIN' || role === 'EDITOR' || role === 'MEMBER';
   });
 
+  readonly canRetry = computed(() => {
+    const role = this.workspaceService.activeWorkspace()?.role;
+    return role === 'OWNER' || role === 'ADMIN';
+  });
+
+  readonly retryingDocId = signal<string | null>(null);
+
   readonly filteredDocuments = computed(() => {
     const filter = this.activeFilter();
     const all = this.documents();
@@ -189,6 +196,33 @@ export class DocumentCatalogComponent implements OnInit {
           alert(
             err?.error?.error?.message ||
               'No se pudo generar la URL de descarga del documento.'
+          );
+        },
+      });
+  }
+
+  retryDocument(doc: DocumentItem): void {
+    if (doc.status !== 'FAILED') return;
+
+    this.retryingDocId.set(doc.id);
+    this.documentService
+      .retryDocument(this.workspaceId(), doc.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (updatedDoc) => {
+          this.retryingDocId.set(null);
+          this.documents.update((docs) =>
+            docs.map((d) => (d.id === updatedDoc.id ? updatedDoc : d))
+          );
+          if (this.selectedDocument()?.id === doc.id) {
+            this.selectedDocument.set(updatedDoc);
+          }
+        },
+        error: (err) => {
+          this.retryingDocId.set(null);
+          alert(
+            err?.error?.error?.message ||
+              'No se pudo reintentar el procesamiento del documento.'
           );
         },
       });

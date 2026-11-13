@@ -100,6 +100,11 @@ output "document_events_dlq_url" {
   value       = module.sqs_worker_queue.dlq_url
 }
 
+output "document_events_dlq_alarm_arn" {
+  description = "ARN de la alarma CloudWatch para mensajes acumulados en la DLQ (CDM-39)."
+  value       = module.sqs_worker_queue.dlq_alarm_arn
+}
+
 output "lambda_worker_function_name" {
   description = "Nombre de la función Lambda worker para eventos asíncronos."
   value       = module.lambda_worker.function_name

@@ -266,4 +266,20 @@ export class DocumentService {
       )
       .pipe(map((res) => res.data));
   }
+
+  /**
+   * Reintenta el procesamiento de un documento en estado FAILED (CDM-39).
+   * Requiere rol ADMIN o OWNER.
+   */
+  retryDocument(
+    workspaceId: string,
+    documentId: string
+  ): Observable<DocumentItem> {
+    return this.http
+      .post<ApiEnvelope<DocumentItem>>(
+        `/api/v1/workspaces/${workspaceId}/documents/${documentId}/retry`,
+        {}
+      )
+      .pipe(map((res) => res.data));
+  }
 }
