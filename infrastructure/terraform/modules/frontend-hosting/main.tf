@@ -9,11 +9,13 @@
 
 # Políticas administradas de CloudFront
 data "aws_cloudfront_cache_policy" "caching_optimized" {
-  name = "Managed-CachingOptimized"
+  count = var.enable_cloudfront ? 1 : 0
+  name  = "Managed-CachingOptimized"
 }
 
 data "aws_cloudfront_response_headers_policy" "security_headers" {
-  name = "Managed-SecurityHeadersPolicy"
+  count = var.enable_cloudfront ? 1 : 0
+  name  = "Managed-SecurityHeadersPolicy"
 }
 
 # 1. Bucket S3 para archivos estáticos del frontend (Angular)
@@ -53,6 +55,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 
 # 4. Origin Access Control (OAC) moderno para CloudFront -> S3
 resource "aws_cloudfront_origin_access_control" "oac" {
+  count                             = var.enable_cloudfront ? 1 : 0
   name                              = "${var.project_name}-${var.environment}-frontend-oac"
   description                       = "OAC para acceso seguro de CloudFront al bucket frontend de ${var.project_name}"
   origin_access_control_origin_type = "s3"
@@ -62,6 +65,8 @@ resource "aws_cloudfront_origin_access_control" "oac" {
 
 # 5. Política de bucket que permite lectura únicamente a CloudFront vía OAC
 data "aws_iam_policy_document" "frontend_bucket_policy" {
+  count = var.enable_cloudfront ? 1 : 0
+
   statement {
     sid       = "AllowCloudFrontServicePrincipalReadOnly"
     effect    = "Allow"
@@ -76,18 +81,20 @@ data "aws_iam_policy_document" "frontend_bucket_policy" {
     condition {
       test     = "StringEquals"
       variable = "AWS:SourceArn"
-      values   = [aws_cloudfront_distribution.frontend.arn]
+      values   = [aws_cloudfront_distribution.frontend[0].arn]
     }
   }
 }
 
 resource "aws_s3_bucket_policy" "frontend" {
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.frontend.id
-  policy = data.aws_iam_policy_document.frontend_bucket_policy.json
+  policy = data.aws_iam_policy_document.frontend_bucket_policy[0].json
 }
 
 # 6. Distribución de CloudFront con soporte para SPA Routing
 resource "aws_cloudfront_distribution" "frontend" {
+  count               = var.enable_cloudfront ? 1 : 0
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "Distribucion CDN para Angular SPA - ${var.project_name} (${var.environment})"
@@ -97,7 +104,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id                = "S3-${aws_s3_bucket.frontend.id}"
-    origin_access_control_id = aws_cloudfront_origin_access_control.oac.id
+    origin_access_control_id = aws_cloudfront_origin_access_control.oac[0].id
   }
 
   default_cache_behavior {
@@ -106,8 +113,8 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods            = ["GET", "HEAD", "OPTIONS"]
     cached_methods             = ["GET", "HEAD"]
     compress                   = true
-    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
-    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security_headers.id
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized[0].id
+    response_headers_policy_id = data.aws_cloudfront_response_headers_policy.security_headers[0].id
   }
 
   # Enrutamiento de SPA: cualquier ruta de Angular (403 o 404 de S3) se sirve con /index.html y HTTP 200

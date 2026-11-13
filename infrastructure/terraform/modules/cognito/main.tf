@@ -72,7 +72,7 @@ resource "aws_cognito_user_pool" "this" {
     var.tags,
     {
       Name        = "${var.project_name}-${var.environment}-user-pool"
-      Description = "Directorio de identidades de usuarios para ${var.project_name} (${var.environment})"
+      Description = "Directorio de identidades de usuarios para ${var.project_name} - ${var.environment}"
     }
   )
 }

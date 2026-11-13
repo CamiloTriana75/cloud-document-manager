@@ -31,6 +31,7 @@ module "lambda_api" {
   timeout            = 15
   log_retention_days = var.log_retention_days
   s3_bucket_arn      = module.s3_document_store.bucket_arn
+  package_path       = "${path.module}/../../../../build/cdm-api-lambda.zip"
 
   environment_variables = {
     ENVIRONMENT           = var.environment
@@ -67,9 +68,10 @@ module "rds_postgres" {
 module "frontend_hosting" {
   source = "../../modules/frontend-hosting"
 
-  project_name  = var.project_name
-  environment   = var.environment
-  force_destroy = true
+  project_name      = var.project_name
+  environment       = var.environment
+  enable_cloudfront = var.enable_cloudfront
+  force_destroy     = true
 
   tags = local.tags
 }
@@ -80,14 +82,14 @@ module "cognito" {
   project_name = var.project_name
   environment  = var.environment
   aws_region   = var.aws_region
-  callback_urls = [
+  callback_urls = distinct(compact([
     "http://localhost:4200/auth/callback",
-    "${module.frontend_hosting.cloudfront_url}/auth/callback"
-  ]
-  logout_urls = [
+    module.frontend_hosting.cloudfront_url != null ? "${module.frontend_hosting.cloudfront_url}/auth/callback" : ""
+  ]))
+  logout_urls = distinct(compact([
     "http://localhost:4200/auth/login",
-    "${module.frontend_hosting.cloudfront_url}/auth/login"
-  ]
+    module.frontend_hosting.cloudfront_url != null ? "${module.frontend_hosting.cloudfront_url}/auth/login" : ""
+  ]))
 
   tags = local.tags
 }
@@ -129,6 +131,7 @@ module "lambda_worker" {
   log_retention_days = var.log_retention_days
   sqs_queue_arn      = module.sqs_worker_queue.queue_arn
   s3_bucket_arn      = module.s3_document_store.bucket_arn
+  package_path       = "${path.module}/../../../../build/cdm-api-lambda.zip"
   batch_size         = 10
 
   environment_variables = {

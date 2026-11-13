@@ -63,6 +63,12 @@ variable "s3_bucket_arn" {
   default     = null
 }
 
+variable "attach_s3_policy" {
+  description = "Indica si se debe adjuntar la política IAM para acceso acotado a objetos S3."
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Etiquetas adicionales específicas para la función Lambda."
   type        = map(string)
