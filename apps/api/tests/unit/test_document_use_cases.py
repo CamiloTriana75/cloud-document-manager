@@ -20,7 +20,7 @@ from cdm.application.use_cases.documents import (
     GetDocumentDetailUseCase,
     ListDocumentsUseCase,
 )
-from cdm.domain.document import Document, DocumentStatus
+from cdm.domain.document import Document, DocumentQueryFilter, DocumentStatus
 from cdm.domain.errors import DocumentNotFoundError, PermissionDeniedError
 from cdm.domain.tenant import TenantContext
 from cdm.domain.workspace import WorkspaceRole
@@ -47,6 +47,42 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
             return None
         return doc
 
+    def _filter_doc(
+        self,
+        doc: Document,
+        workspace_id: UUID,
+        include_deleted: bool,
+        status: DocumentStatus | None,
+        filters: DocumentQueryFilter | None,
+    ) -> bool:
+        if doc.workspace_id != workspace_id:
+            return False
+
+        effective_status = filters.status if filters and filters.status else status
+        if effective_status is not None and doc.status != effective_status:
+            return False
+
+        effective_include_deleted = filters.include_deleted if filters else include_deleted
+        if effective_status is None and not effective_include_deleted and doc.is_deleted:
+            return False
+
+        if filters:
+            if (
+                filters.search_term
+                and filters.search_term.lower() not in doc.original_filename.lower()
+            ):
+                return False
+            if filters.content_type and doc.content_type.lower() != filters.content_type.lower():
+                return False
+            if filters.uploaded_by and doc.uploaded_by != filters.uploaded_by:
+                return False
+            if filters.created_after and doc.created_at < filters.created_after:
+                return False
+            if filters.created_before and doc.created_at > filters.created_before:
+                return False
+
+        return True
+
     def list_by_workspace(
         self,
         workspace_id: UUID,
@@ -54,13 +90,12 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
         offset: int = 0,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
+        filters: DocumentQueryFilter | None = None,
     ) -> list[Document]:
         items = [
             doc
             for doc in self.documents.values()
-            if doc.workspace_id == workspace_id
-            and (status is None or doc.status == status)
-            and (status is not None or include_deleted or not doc.is_deleted)
+            if self._filter_doc(doc, workspace_id, include_deleted, status, filters)
         ]
         items.sort(key=lambda d: d.created_at, reverse=True)
         return items[offset : offset + limit]
@@ -70,13 +105,12 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
         workspace_id: UUID,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
+        filters: DocumentQueryFilter | None = None,
     ) -> int:
         return sum(
             1
             for doc in self.documents.values()
-            if doc.workspace_id == workspace_id
-            and (status is None or doc.status == status)
-            and (status is not None or include_deleted or not doc.is_deleted)
+            if self._filter_doc(doc, workspace_id, include_deleted, status, filters)
         )
 
     def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:

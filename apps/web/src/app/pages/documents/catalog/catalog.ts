@@ -7,6 +7,7 @@ import {
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
 
@@ -19,10 +20,23 @@ import { WorkspaceService } from '../../../core/workspaces/workspace.service';
 
 export type StatusFilterOption = 'ALL' | DocumentStatus;
 
+export interface MimeOption {
+  label: string;
+  value: string;
+}
+
+export const MIME_OPTIONS: MimeOption[] = [
+  { label: 'Todos los tipos', value: 'ALL' },
+  { label: 'PDFs (.pdf)', value: 'application/pdf' },
+  { label: 'Imágenes (PNG/JPG)', value: 'image/' },
+  { label: 'Documentos Word/Excel', value: 'application/vnd' },
+  { label: 'Texto y Markdown', value: 'text/' },
+];
+
 @Component({
   selector: 'app-document-catalog',
   standalone: true,
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, FormsModule],
   templateUrl: './catalog.html',
   styleUrl: './catalog.css',
 })
@@ -40,7 +54,34 @@ export class DocumentCatalogComponent implements OnInit {
   readonly isLoading = signal<boolean>(true);
   readonly isRefreshing = signal<boolean>(false);
   readonly errorMessage = signal<string | null>(null);
+
+  // Filtros interactivos (CDM-42)
   readonly activeFilter = signal<StatusFilterOption>('ALL');
+  readonly searchTerm = signal<string>('');
+  readonly selectedMime = signal<string>('ALL');
+  readonly mimeOptions = MIME_OPTIONS;
+
+  // Paginación server-side (CDM-42)
+  readonly currentPage = signal<number>(1);
+  readonly pageSize = signal<number>(50);
+  readonly totalDocuments = signal<number>(0);
+
+  readonly totalPages = computed(() =>
+    Math.max(1, Math.ceil(this.totalDocuments() / this.pageSize()))
+  );
+
+  readonly hasNextPage = computed(() => this.currentPage() < this.totalPages());
+  readonly hasPrevPage = computed(() => this.currentPage() > 1);
+
+  readonly showingFrom = computed(() =>
+    this.totalDocuments() === 0
+      ? 0
+      : (this.currentPage() - 1) * this.pageSize() + 1
+  );
+
+  readonly showingTo = computed(() =>
+    Math.min(this.currentPage() * this.pageSize(), this.totalDocuments())
+  );
 
   // Modal / Detalle de documento seleccionado
   readonly selectedDocument = signal<DocumentItem | null>(null);
@@ -60,7 +101,12 @@ export class DocumentCatalogComponent implements OnInit {
 
   readonly canUpload = computed(() => {
     const role = this.workspaceService.activeWorkspace()?.role;
-    return role === 'OWNER' || role === 'ADMIN' || role === 'EDITOR' || role === 'MEMBER';
+    return (
+      role === 'OWNER' ||
+      role === 'ADMIN' ||
+      role === 'EDITOR' ||
+      role === 'MEMBER'
+    );
   });
 
   readonly canRetry = computed(() => {
@@ -71,13 +117,39 @@ export class DocumentCatalogComponent implements OnInit {
   readonly retryingDocId = signal<string | null>(null);
 
   readonly filteredDocuments = computed(() => {
-    const filter = this.activeFilter();
-    const all = this.documents();
-    if (filter === 'ALL') {
-      return all;
+    const statusFilter = this.activeFilter();
+    const search = this.searchTerm().trim().toLowerCase();
+    const mime = this.selectedMime();
+    let result = this.documents();
+
+    // 1. Filtro por estado
+    if (statusFilter !== 'ALL') {
+      result = result.filter((doc) => doc.status === statusFilter);
     }
-    return all.filter((doc) => doc.status === filter);
+
+    // 2. Filtro por término en nombre
+    if (search) {
+      result = result.filter((doc) =>
+        doc.original_filename.toLowerCase().includes(search)
+      );
+    }
+
+    // 3. Filtro por MIME type
+    if (mime !== 'ALL') {
+      result = result.filter((doc) =>
+        doc.content_type.toLowerCase().startsWith(mime.toLowerCase())
+      );
+    }
+
+    return result;
   });
+
+  readonly hasActiveFilters = computed(
+    () =>
+      this.activeFilter() !== 'ALL' ||
+      this.searchTerm().trim().length > 0 ||
+      this.selectedMime() !== 'ALL'
+  );
 
   readonly hasProcessingDocuments = computed(() => {
     return this.documents().some(
@@ -92,7 +164,8 @@ export class DocumentCatalogComponent implements OnInit {
     });
 
     const routeId = this.route.snapshot.paramMap.get('id');
-    const targetWsId = routeId || this.workspaceService.activeWorkspace()?.id || '';
+    const targetWsId =
+      routeId || this.workspaceService.activeWorkspace()?.id || '';
 
     if (!targetWsId) {
       this.errorMessage.set('No se ha seleccionado ningún espacio de trabajo.');
@@ -122,12 +195,15 @@ export class DocumentCatalogComponent implements OnInit {
     this.isLoading.set(true);
     this.errorMessage.set(null);
 
+    const offset = (this.currentPage() - 1) * this.pageSize();
+
     this.documentService
-      .listDocuments(wsId, 50, 0)
+      .listDocuments(wsId, this.pageSize(), offset)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.documents.set(res.items);
+          this.totalDocuments.set(res.total);
           this.isLoading.set(false);
           this.isRefreshing.set(false);
         },
@@ -150,12 +226,15 @@ export class DocumentCatalogComponent implements OnInit {
       this.isRefreshing.set(true);
     }
 
+    const offset = (this.currentPage() - 1) * this.pageSize();
+
     this.documentService
-      .listDocuments(wsId, 50, 0)
+      .listDocuments(wsId, this.pageSize(), offset)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: (res) => {
           this.documents.set(res.items);
+          this.totalDocuments.set(res.total);
           this.isRefreshing.set(false);
         },
         error: () => {
@@ -166,6 +245,54 @@ export class DocumentCatalogComponent implements OnInit {
 
   setFilter(filter: StatusFilterOption): void {
     this.activeFilter.set(filter);
+  }
+
+  onSearchChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.searchTerm.set(input.value || '');
+  }
+
+  clearSearch(): void {
+    this.searchTerm.set('');
+  }
+
+  setMimeFilter(mime: string): void {
+    this.selectedMime.set(mime);
+  }
+
+  resetAllFilters(): void {
+    this.activeFilter.set('ALL');
+    this.searchTerm.set('');
+    this.selectedMime.set('ALL');
+    this.currentPage.set(1);
+    this.loadDocuments();
+  }
+
+  nextPage(): void {
+    if (this.hasNextPage()) {
+      this.currentPage.update((p) => p + 1);
+      this.loadDocuments();
+    }
+  }
+
+  prevPage(): void {
+    if (this.hasPrevPage()) {
+      this.currentPage.update((p) => p - 1);
+      this.loadDocuments();
+    }
+  }
+
+  goToPage(page: number): void {
+    if (page >= 1 && page <= this.totalPages() && page !== this.currentPage()) {
+      this.currentPage.set(page);
+      this.loadDocuments();
+    }
+  }
+
+  setPageSize(size: number): void {
+    this.pageSize.set(size);
+    this.currentPage.set(1);
+    this.loadDocuments();
   }
 
   openDetail(doc: DocumentItem): void {

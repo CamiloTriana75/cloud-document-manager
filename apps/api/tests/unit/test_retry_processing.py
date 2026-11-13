@@ -11,6 +11,7 @@ Criterios de aceptación (CDM-39):
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -68,6 +69,7 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
         offset: int = 0,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
+        filters: Any = None,
     ) -> list[Document]:
         items = [
             doc
@@ -83,6 +85,7 @@ class InMemoryDocumentRepository(DocumentRepositoryPort):
         workspace_id: UUID,
         include_deleted: bool = False,
         status: DocumentStatus | None = None,
+        filters: Any = None,
     ) -> int:
         return len(self.list_by_workspace(workspace_id, 1000, 0, include_deleted, status))
 

@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { of } from 'rxjs';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { DocumentCatalogComponent } from './catalog';
@@ -203,5 +203,68 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
     const updated = component.documents().find((d) => d.id === 'doc-failed-3');
     expect(updated?.status).toBe('PROCESSING');
     expect(updated?.retry_count).toBe(1);
+  });
+
+  it('permite buscar documentos por término en nombre de archivo (CDM-42)', () => {
+    // Búsqueda por término "contrato"
+    component.searchTerm.set('contrato');
+    fixture.detectChanges();
+    expect(component.filteredDocuments().length).toBe(1);
+    expect(component.filteredDocuments()[0].original_filename).toBe('contrato.pdf');
+
+    // Limpiar búsqueda
+    component.clearSearch();
+    fixture.detectChanges();
+    expect(component.filteredDocuments().length).toBe(3);
+  });
+
+  it('permite filtrar por tipo de formato MIME y resetear filtros (CDM-42)', () => {
+    // Filtrar por application/pdf
+    component.setMimeFilter('application/pdf');
+    fixture.detectChanges();
+    expect(component.filteredDocuments().length).toBe(1);
+    expect(component.filteredDocuments()[0].content_type).toBe('application/pdf');
+
+    // Resetear todos los filtros
+    component.resetAllFilters();
+    fixture.detectChanges();
+    expect(component.activeFilter()).toBe('ALL');
+    expect(component.searchTerm()).toBe('');
+    expect(component.selectedMime()).toBe('ALL');
+    expect(component.filteredDocuments().length).toBe(3);
+  });
+
+  it('calcula la paginación correctamente y permite navegar entre páginas (CDM-42)', () => {
+    mockDocumentService.listDocuments.mockReturnValue(
+      of({
+        items: mockDocuments,
+        total: 120,
+      })
+    );
+    component.totalDocuments.set(120);
+    component.pageSize.set(50);
+    expect(component.totalPages()).toBe(3);
+    expect(component.currentPage()).toBe(1);
+    expect(component.hasPrevPage()).toBe(false);
+    expect(component.hasNextPage()).toBe(true);
+    expect(component.showingFrom()).toBe(1);
+    expect(component.showingTo()).toBe(50);
+
+    // Siguiente página
+    component.nextPage();
+    expect(component.currentPage()).toBe(2);
+    expect(component.hasPrevPage()).toBe(true);
+    expect(component.hasNextPage()).toBe(true);
+    expect(component.showingFrom()).toBe(51);
+    expect(component.showingTo()).toBe(100);
+
+    // Página anterior
+    component.prevPage();
+    expect(component.currentPage()).toBe(1);
+
+    // Cambiar tamaño de página
+    component.setPageSize(25);
+    expect(component.pageSize()).toBe(25);
+    expect(component.totalPages()).toBe(5);
   });
 });

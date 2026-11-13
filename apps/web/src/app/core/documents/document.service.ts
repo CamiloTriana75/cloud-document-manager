@@ -3,12 +3,15 @@ import {
   HttpEvent,
   HttpHeaders,
   HttpEventType,
+  HttpParams,
 } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { catchError, map, Observable, of, switchMap } from 'rxjs';
 
 import {
+  DocumentFilterOptions,
   DocumentItem,
+  DocumentListResult,
   DocumentStatus,
   DownloadUrlResponse,
   UploadProgressState,
@@ -26,8 +29,9 @@ interface ApiListEnvelope<T> {
     total: number;
     limit: number;
     offset: number;
-    has_next: boolean;
-    has_prev: boolean;
+    has_more?: boolean;
+    has_next?: boolean;
+    has_prev?: boolean;
   };
 }
 
@@ -220,24 +224,59 @@ export class DocumentService {
   }
 
   /**
-   * Consulta el catálogo de documentos del workspace con paginación y filtro opcional por estado.
+   * Consulta el catálogo de documentos del workspace con filtros multicriterio y paginación (CDM-42).
    */
   listDocuments(
     workspaceId: string,
-    limit = 20,
+    paramsOrLimit?: DocumentFilterOptions | number,
     offset = 0,
     status?: DocumentStatus
-  ): Observable<{ items: DocumentItem[]; total: number }> {
-    let url = `/api/v1/workspaces/${workspaceId}/documents?limit=${limit}&offset=${offset}`;
-    if (status) {
-      url += `&status=${status}`;
+  ): Observable<DocumentListResult> {
+    let params = new HttpParams();
+
+    if (typeof paramsOrLimit === 'object' && paramsOrLimit !== null) {
+      const opts = paramsOrLimit;
+      params = params.set('limit', (opts.limit ?? 20).toString());
+      params = params.set('offset', (opts.offset ?? 0).toString());
+      if (opts.status && opts.status !== 'ALL') {
+        params = params.set('status', opts.status);
+      }
+      if (opts.search && opts.search.trim()) {
+        params = params.set('search', opts.search.trim());
+      }
+      if (opts.content_type && opts.content_type !== 'ALL') {
+        params = params.set('content_type', opts.content_type.trim());
+      }
+      if (opts.uploaded_by) {
+        params = params.set('uploaded_by', opts.uploaded_by);
+      }
+      if (opts.created_after) {
+        params = params.set('created_after', opts.created_after);
+      }
+      if (opts.created_before) {
+        params = params.set('created_before', opts.created_before);
+      }
+    } else {
+      const limitVal = typeof paramsOrLimit === 'number' ? paramsOrLimit : 20;
+      params = params.set('limit', limitVal.toString());
+      params = params.set('offset', offset.toString());
+      if (status) {
+        params = params.set('status', status);
+      }
     }
+
     return this.http
-      .get<ApiListEnvelope<DocumentItem>>(url)
+      .get<ApiListEnvelope<DocumentItem>>(
+        `/api/v1/workspaces/${workspaceId}/documents`,
+        { params }
+      )
       .pipe(
         map((res) => ({
           items: res.data,
           total: res.pagination.total,
+          limit: res.pagination.limit,
+          offset: res.pagination.offset,
+          has_more: res.pagination.has_more,
         }))
       );
   }

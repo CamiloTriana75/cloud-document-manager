@@ -16,7 +16,7 @@ from uuid import UUID
 from cdm.application.ports.document_repository import DocumentRepositoryPort
 from cdm.application.ports.storage import StoragePort
 from cdm.application.ports.upload_session_repository import UploadSessionRepositoryPort
-from cdm.domain.document import Document, DocumentStatus
+from cdm.domain.document import Document, DocumentQueryFilter, DocumentStatus
 from cdm.domain.errors import (
     ConflictError,
     DocumentNotFoundError,
@@ -39,7 +39,6 @@ class DocumentDetailDTO:
     workspace_id: UUID
     uploaded_by: UUID
     original_filename: str
-    storage_key: str
     content_type: str
     size_bytes: int
     checksum_sha256: str | None
@@ -47,6 +46,7 @@ class DocumentDetailDTO:
     technical_metadata: dict[str, Any]
     created_at: datetime
     updated_at: datetime
+    storage_key: str | None = None
     failure_reason: str | None = None
     retry_count: int = 0
 
@@ -71,13 +71,13 @@ class DocumentListDTO:
     offset: int
 
 
-def _to_dto(doc: Document) -> DocumentDetailDTO:
+def _to_dto(doc: Document, include_storage_key: bool = False) -> DocumentDetailDTO:
     return DocumentDetailDTO(
         id=doc.id,
         workspace_id=doc.workspace_id,
         uploaded_by=doc.uploaded_by,
         original_filename=doc.original_filename,
-        storage_key=doc.storage_key,
+        storage_key=doc.storage_key if include_storage_key else None,
         content_type=doc.content_type,
         size_bytes=doc.size_bytes,
         checksum_sha256=doc.checksum_sha256,
@@ -102,9 +102,25 @@ class ListDocumentsUseCase:
         limit: int = 50,
         offset: int = 0,
         status: DocumentStatus | None = None,
+        filters: DocumentQueryFilter | None = None,
     ) -> DocumentListDTO:
         # Cualquier miembro del workspace (incluso VIEWER) puede listar el catálogo
         tenant.require_role(WorkspaceRole.VIEWER)
+
+        effective_filters = filters
+        if status is not None:
+            if effective_filters is None:
+                effective_filters = DocumentQueryFilter(status=status)
+            elif effective_filters.status is None:
+                effective_filters = DocumentQueryFilter(
+                    status=status,
+                    content_type=effective_filters.content_type,
+                    search_term=effective_filters.search_term,
+                    uploaded_by=effective_filters.uploaded_by,
+                    created_after=effective_filters.created_after,
+                    created_before=effective_filters.created_before,
+                    include_deleted=effective_filters.include_deleted,
+                )
 
         documents = self._doc_repo.list_by_workspace(
             workspace_id=tenant.workspace_id,
@@ -112,15 +128,17 @@ class ListDocumentsUseCase:
             offset=offset,
             include_deleted=False,
             status=status,
+            filters=effective_filters,
         )
         total = self._doc_repo.count_by_workspace(
             workspace_id=tenant.workspace_id,
             include_deleted=False,
             status=status,
+            filters=effective_filters,
         )
 
         return DocumentListDTO(
-            items=[_to_dto(d) for d in documents],
+            items=[_to_dto(d, include_storage_key=False) for d in documents],
             total=total,
             limit=limit,
             offset=offset,

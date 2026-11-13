@@ -34,7 +34,7 @@ from cdm.application.use_cases.documents import (
     ListDocumentsUseCase,
     RetryDocumentProcessingUseCase,
 )
-from cdm.domain.document import DocumentStatus
+from cdm.domain.document import DocumentQueryFilter, DocumentStatus
 from cdm.domain.tenant import TenantContext
 
 router = APIRouter(prefix="/api/v1/workspaces/{workspace_id}/documents", tags=["documents"])
@@ -95,7 +95,10 @@ class DocumentResponse(BaseModel):
     workspace_id: UUID
     uploaded_by: UUID
     original_filename: str
-    storage_key: str
+    storage_key: str | None = Field(
+        default=None,
+        description="Clave de almacenamiento interna (omitida en respuestas públicas)",
+    )
     content_type: str
     size_bytes: int
     checksum_sha256: str | None
@@ -170,12 +173,48 @@ def list_documents(
     status: Annotated[
         DocumentStatus | None, Query(description="Filtrar por estado del documento")
     ] = None,
+    search: Annotated[
+        str | None,
+        Query(
+            description="Buscar término en el nombre original del archivo (case-insensitive)",
+            max_length=255,
+        ),
+    ] = None,
+    content_type: Annotated[
+        str | None,
+        Query(
+            description="Filtrar por tipo MIME (ej: application/pdf, image/png)",
+            max_length=100,
+        ),
+    ] = None,
+    uploaded_by: Annotated[
+        UUID | None,
+        Query(description="Filtrar por ID del usuario creador/autor"),
+    ] = None,
+    created_after: Annotated[
+        datetime | None,
+        Query(description="Filtrar documentos creados en o después de esta fecha (ISO-8601)"),
+    ] = None,
+    created_before: Annotated[
+        datetime | None,
+        Query(description="Filtrar documentos creados en o antes de esta fecha (ISO-8601)"),
+    ] = None,
 ) -> EnvelopeDocumentList:
+    doc_filter = DocumentQueryFilter(
+        status=status,
+        content_type=content_type,
+        search_term=search,
+        uploaded_by=uploaded_by,
+        created_after=created_after,
+        created_before=created_before,
+        include_deleted=False,
+    )
     result = use_case.execute(
         tenant=tenant,
         limit=pagination.limit,
         offset=pagination.offset,
         status=status,
+        filters=doc_filter,
     )
     return EnvelopeDocumentList(
         data=[
@@ -193,6 +232,7 @@ def list_documents(
                 created_at=d.created_at,
                 updated_at=d.updated_at,
                 failure_reason=d.failure_reason,
+                retry_count=d.retry_count,
             )
             for d in result.items
         ],

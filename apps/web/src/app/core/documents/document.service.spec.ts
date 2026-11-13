@@ -236,6 +236,30 @@ describe('DocumentService', () => {
     });
   });
 
+  it('listDocuments con DocumentFilterOptions envía parámetros multicriterio completos (CDM-42)', () => {
+    service
+      .listDocuments('ws-1', {
+        limit: 15,
+        offset: 30,
+        status: 'READY',
+        search: 'factura',
+        content_type: 'application/pdf',
+      })
+      .subscribe((res) => {
+        expect(res.items.length).toBe(1);
+        expect(res.total).toBe(1);
+      });
+
+    const req = http.expectOne(
+      '/api/v1/workspaces/ws-1/documents?limit=15&offset=30&status=READY&search=factura&content_type=application/pdf'
+    );
+    expect(req.request.method).toBe('GET');
+    req.flush({
+      data: [mockDocument],
+      pagination: { total: 1, limit: 15, offset: 30, has_more: false },
+    });
+  });
+
   it('getDocument envía GET por ID y retorna el documento', () => {
     service.getDocument('ws-1', 'doc-456').subscribe((doc) => {
       expect(doc.id).toBe('doc-456');
