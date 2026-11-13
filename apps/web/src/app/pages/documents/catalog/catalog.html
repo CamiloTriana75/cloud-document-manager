@@ -187,6 +187,29 @@
     </div>
   </div>
 
+  <!-- Banner de error de operaciones de acción (descarga, eliminación, reintento) -->
+  @if (actionErrorMessage(); as actionErr) {
+    <div class="alert alert-danger" role="alert" aria-live="assertive">
+      <svg class="alert-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2" />
+        <line x1="12" y1="8" x2="12" y2="12" />
+        <line x1="12" y1="16" x2="12.01" y2="16" />
+      </svg>
+      <div class="alert-content">
+        <p class="alert-title">Acción no completada</p>
+        <p class="alert-detail">{{ actionErr }}</p>
+      </div>
+      <button
+        type="button"
+        class="btn-close-alert"
+        (click)="actionErrorMessage.set(null)"
+        aria-label="Cerrar advertencia"
+      >
+        ✕
+      </button>
+    </div>
+  }
+
   <!-- Banner de error si falla la carga -->
   @if (errorMessage()) {
     <div class="alert alert-danger" role="alert">
@@ -526,6 +549,13 @@
             </div>
           }
 
+          @if (doc.status === 'PROCESSING' || doc.status === 'UPLOADED') {
+            <div class="alert alert-info mb-4" role="status">
+              <span class="pulse-indicator" aria-hidden="true"></span>
+              <span>Documento en procesamiento asíncrono. La descarga estará disponible al consolidar su estado a Listo.</span>
+            </div>
+          }
+
           <div class="detail-grid">
             <div class="detail-item">
               <span class="detail-label">ID de Documento</span>
@@ -595,6 +625,16 @@
               [disabled]="retryingDocId() === doc.id"
             >
               {{ retryingDocId() === doc.id ? 'Reintentando...' : 'Reintentar Procesamiento' }}
+            </button>
+          }
+          @if (canDelete()) {
+            <button
+              type="button"
+              class="btn-danger btn-delete-modal"
+              (click)="confirmDeleteFromDetail(doc)"
+              aria-label="Eliminar documento definitivamente de este espacio"
+            >
+              Eliminar documento
             </button>
           }
           <button type="button" class="btn-secondary" (click)="closeDetail()">

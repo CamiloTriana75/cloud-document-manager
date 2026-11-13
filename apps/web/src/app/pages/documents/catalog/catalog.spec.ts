@@ -73,6 +73,7 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
       })
     ),
     deleteDocument: vi.fn().mockReturnValue(of({ message: 'Deleted' })),
+    getDocument: vi.fn().mockReturnValue(of(mockDocuments[0])),
     retryDocument: vi.fn().mockReturnValue(
       of({
         id: 'doc-failed-3',
@@ -340,5 +341,38 @@ describe('DocumentCatalogComponent (CDM-37)', () => {
     expect(editorComp.canUpload()).toBe(true);
     expect(editorComp.canDelete()).toBe(true);
     expect(editorComp.canRetry()).toBe(false);
+  });
+
+  it('permite iniciar la confirmación de eliminación directamente desde el modal de detalle (CDM-47)', () => {
+    const doc = mockDocuments[0];
+    component.openDetail(doc);
+    expect(component.isDetailOpen()).toBe(true);
+
+    component.confirmDeleteFromDetail(doc);
+    expect(component.isDetailOpen()).toBe(false);
+    expect(component.documentToDelete()?.id).toBe('doc-ready-1');
+  });
+
+  it('cierra el modal de detalle o de eliminación al presionar la tecla Escape (CDM-47)', () => {
+    const doc = mockDocuments[0];
+    component.openDetail(doc);
+    expect(component.isDetailOpen()).toBe(true);
+
+    component.onEscape();
+    expect(component.isDetailOpen()).toBe(false);
+
+    component.confirmDelete(doc);
+    expect(component.documentToDelete()?.id).toBe('doc-ready-1');
+
+    component.onEscape();
+    expect(component.documentToDelete()).toBeNull();
+  });
+
+  it('muestra un banner accesible de error cuando falla la descarga o eliminación (CDM-47)', () => {
+    component.actionErrorMessage.set('Error al conectar con S3.');
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('.alert-danger')?.textContent).toContain('Error al conectar con S3.');
   });
 });
