@@ -58,6 +58,7 @@ function isLowEndDevice(): boolean {
       display: block;
       pointer-events: none;
       user-select: none;
+      mask-image: linear-gradient(to bottom, #000 58%, transparent 96%);
     }
     .coil-canvas,
     .coil-fallback {
