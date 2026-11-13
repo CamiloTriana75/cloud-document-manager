@@ -79,3 +79,23 @@ output "cognito_issuer_url" {
   description = "URL del emisor JWT de Cognito (iss)."
   value       = module.cognito.issuer_url
 }
+
+output "document_events_queue_arn" {
+  description = "ARN de la cola SQS principal de eventos de documentos."
+  value       = module.sqs_worker_queue.queue_arn
+}
+
+output "document_events_queue_url" {
+  description = "URL de la cola SQS principal de eventos de documentos."
+  value       = module.sqs_worker_queue.queue_url
+}
+
+output "document_events_dlq_arn" {
+  description = "ARN de la Dead Letter Queue (DLQ) para eventos fallidos."
+  value       = module.sqs_worker_queue.dlq_arn
+}
+
+output "document_events_dlq_url" {
+  description = "URL de la Dead Letter Queue (DLQ) para eventos fallidos."
+  value       = module.sqs_worker_queue.dlq_url
+}

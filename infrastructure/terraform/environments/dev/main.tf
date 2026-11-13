@@ -92,3 +92,28 @@ module "cognito" {
 
   tags = local.tags
 }
+
+module "sqs_worker_queue" {
+  source = "../../modules/sqs-worker-queue"
+
+  queue_name                 = "${var.project_name}-${var.environment}-document-events"
+  s3_bucket_arn              = module.s3_document_store.bucket_arn
+  visibility_timeout_seconds = 180
+  receive_wait_time_seconds  = 20
+  max_receive_count          = 3
+
+  tags = local.tags
+}
+
+# Notificación de eventos S3 ObjectCreated hacia la cola SQS (CDM-35)
+resource "aws_s3_bucket_notification" "document_events" {
+  bucket = module.s3_document_store.bucket_id
+
+  queue {
+    queue_arn     = module.sqs_worker_queue.queue_arn
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "tenants/"
+  }
+
+  depends_on = [module.sqs_worker_queue]
+}
