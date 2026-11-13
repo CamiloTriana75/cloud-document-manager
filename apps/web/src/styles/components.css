@@ -554,3 +554,23 @@ button.chip:hover,
   font-size: var(--text-sm);
   color: var(--color-text-tertiary);
 }
+
+/* Disparadores de menú del shell (viven en la vista de app-menu). */
+.btn.ws-trigger {
+  max-width: 17rem;
+  padding-inline: var(--space-3);
+}
+
+.btn.avatar-trigger {
+  --btn-height: auto;
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 50%;
+}
+
+.btn.avatar-trigger:hover {
+  background: transparent;
+  filter: brightness(1.12);
+}

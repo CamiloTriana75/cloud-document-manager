@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
+/** Puerto del dev server de E2E; `E2E_PORT` permite correrlos junto a otro `ng serve`. */
+const port = Number(process.env['E2E_PORT'] ?? 4200);
+const baseURL = `http://localhost:${port}`;
+
 /**
  * Configuración de Playwright para pruebas E2E en Cloud Document Manager (CDM-50).
  */
@@ -11,7 +15,7 @@ export default defineConfig({
   workers: process.env['CI'] ? 1 : undefined,
   reporter: process.env['CI'] ? 'github' : 'list',
   use: {
-    baseURL: 'http://localhost:4200',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -22,8 +26,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'pnpm start',
-    url: 'http://localhost:4200',
+    command: `pnpm exec ng serve --port ${port}`,
+    url: baseURL,
     reuseExistingServer: !process.env['CI'],
     timeout: 120 * 1000,
   },

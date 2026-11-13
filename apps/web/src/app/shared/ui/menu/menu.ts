@@ -103,6 +103,7 @@ export class MenuItemDirective {
       border-radius: var(--radius-md);
       background: #1a3132;
       color: var(--color-text);
+      text-align: left;
       box-shadow: var(--shadow-popover), var(--inset-highlight);
     }
     .menu__panel:not([popover]) {

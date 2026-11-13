@@ -1,61 +1,64 @@
-import { CommonModule } from '@angular/common';
 import {
+  ChangeDetectionStrategy,
   Component,
-  computed,
-  DestroyRef,
-  HostListener,
+  effect,
   inject,
-  OnInit,
   signal,
+  untracked,
 } from '@angular/core';
-import {
-  NavigationEnd,
-  Router,
-  RouterLink,
-  RouterLinkActive,
-  RouterOutlet,
-} from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 
 import { AuthService } from './core/auth/auth.service';
-import { WorkspaceSelectorComponent } from './core/workspaces/workspace-selector';
 import { WorkspaceService } from './core/workspaces/workspace.service';
+import { UserMenuComponent } from './layout/user-menu/user-menu';
+import { WorkspaceSwitcherComponent } from './layout/workspace-switcher/workspace-switcher';
+import { AvatarComponent } from './shared/ui/avatar/avatar';
+import { DialogComponent } from './shared/ui/dialog/dialog';
+import { IconComponent } from './shared/ui/icon/icon';
 
+/** Shell de la aplicación: barra superior, navegación, drawer móvil y contenido. */
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [
-    CommonModule,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
-    WorkspaceSelectorComponent,
+    AvatarComponent,
+    DialogComponent,
+    IconComponent,
+    UserMenuComponent,
+    WorkspaceSwitcherComponent,
   ],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'onEscape()' },
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
-export class App implements OnInit {
+export class App {
   readonly authService = inject(AuthService);
   readonly workspaceService = inject(WorkspaceService);
   private readonly router = inject(Router);
-  private readonly destroyRef = inject(DestroyRef);
 
-  readonly isMobileMenuOpen = signal<boolean>(false);
+  readonly isMobileMenuOpen = signal(false);
 
-  readonly userInitial = computed(() => {
-    const user = this.authService.currentUser();
-    const name = user?.name || user?.email || 'U';
-    return name.charAt(0).toUpperCase();
-  });
+  constructor() {
+    this.router.events
+      .pipe(
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => this.closeMobileMenu());
 
-  ngOnInit(): void {
-    const routerSub = this.router.events
-      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
-      .subscribe(() => {
-        this.closeMobileMenu();
-      });
-
-    this.destroyRef.onDestroy(() => routerSub.unsubscribe());
+    // Una sola carga de workspaces por sesión, compartida por header, drawer y páginas.
+    effect(() => {
+      if (this.authService.isAuthenticated()) {
+        untracked(() =>
+          this.workspaceService.loadWorkspaces().subscribe({ error: () => undefined }),
+        );
+      }
+    });
   }
 
   toggleMobileMenu(): void {
@@ -66,17 +69,14 @@ export class App implements OnInit {
     this.isMobileMenuOpen.set(false);
   }
 
+  onEscape(): void {
+    this.closeMobileMenu();
+  }
+
   onLogout(): void {
     this.closeMobileMenu();
     this.authService.logout();
     this.workspaceService.setActiveWorkspace(null);
-    this.router.navigate(['/auth/login']);
-  }
-
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    if (this.isMobileMenuOpen()) {
-      this.closeMobileMenu();
-    }
+    void this.router.navigate(['/auth/login']);
   }
 }
