@@ -1,10 +1,18 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject, OnDestroy, OnInit } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  OnDestroy,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Subscription } from 'rxjs';
+import { interval, Subscription, switchMap, take } from 'rxjs';
 
 import {
   ALLOWED_UPLOAD_EXTENSIONS,
+  DocumentStatus,
   MAX_UPLOAD_SIZE_BYTES,
   UploadProgressState,
 } from '../../../core/documents/document.models';
@@ -22,7 +30,7 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly documentService = inject(DocumentService);
-  private readonly workspaceService = inject(WorkspaceService);
+  readonly workspaceService = inject(WorkspaceService);
 
   workspaceId = '';
   workspaceName = '';
@@ -36,10 +44,22 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
     totalBytes: 0,
   };
 
+  readonly currentDocumentStatus = signal<DocumentStatus | null>(null);
+  readonly isPollingStatus = signal<boolean>(false);
+
   private uploadSub?: Subscription;
+  private pollSub?: Subscription;
 
   readonly allowedExtensions = ALLOWED_UPLOAD_EXTENSIONS;
   readonly maxSizeBytes = MAX_UPLOAD_SIZE_BYTES;
+
+  /**
+   * Comprueba si el usuario tiene permisos de edición (ADR-0001: VIEWER es solo lectura).
+   */
+  readonly canUpload = computed(() => {
+    const role = this.workspaceService.activeWorkspace()?.role;
+    return role !== 'VIEWER';
+  });
 
   ngOnInit(): void {
     this.workspaceId = this.route.snapshot.paramMap.get('id') || '';
@@ -56,9 +76,11 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.cancelUpload();
+    this.stopStatusPolling();
   }
 
   onDragOver(event: DragEvent): void {
+    if (!this.canUpload()) return;
     event.preventDefault();
     event.stopPropagation();
     this.isDragging = true;
@@ -71,6 +93,7 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   }
 
   onDrop(event: DragEvent): void {
+    if (!this.canUpload()) return;
     event.preventDefault();
     event.stopPropagation();
     this.isDragging = false;
@@ -87,9 +110,21 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
     }
   }
 
+  triggerFileInput(fileInput: HTMLInputElement): void {
+    if (this.canUpload()) {
+      fileInput.click();
+    }
+  }
+
   handleFileSelected(file: File): void {
     this.validationError = null;
     this.selectedFile = null;
+
+    if (!this.canUpload()) {
+      this.validationError =
+        'No tienes permisos para subir archivos en este espacio (rol VIEWER).';
+      return;
+    }
 
     // Validación de extensión
     const ext = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -120,15 +155,22 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
   }
 
   startUpload(): void {
-    if (!this.selectedFile || !this.workspaceId) {
+    if (!this.selectedFile || !this.workspaceId || !this.canUpload()) {
       return;
     }
+
+    this.stopStatusPolling();
+    this.currentDocumentStatus.set(null);
 
     this.uploadSub = this.documentService
       .uploadWithProgress(this.workspaceId, this.selectedFile)
       .subscribe({
         next: (state) => {
           this.uploadState = state;
+          if (state.status === 'completed' && state.document) {
+            this.currentDocumentStatus.set(state.document.status);
+            this.startStatusPolling(state.document.id);
+          }
         },
       });
   }
@@ -144,18 +186,55 @@ export class DocumentUploadComponent implements OnInit, OnDestroy {
         error: 'Carga cancelada por el usuario.',
       };
     }
+    this.stopStatusPolling();
   }
 
   resetForm(): void {
     this.cancelUpload();
+    this.stopStatusPolling();
     this.selectedFile = null;
     this.validationError = null;
+    this.currentDocumentStatus.set(null);
     this.uploadState = {
       status: 'idle',
       progressPercentage: 0,
       loadedBytes: 0,
       totalBytes: 0,
     };
+  }
+
+  startStatusPolling(documentId: string): void {
+    this.stopStatusPolling();
+    this.isPollingStatus.set(true);
+
+    this.pollSub = interval(2500)
+      .pipe(
+        take(8),
+        switchMap(() =>
+          this.documentService.getDocument(this.workspaceId, documentId)
+        )
+      )
+      .subscribe({
+        next: (doc) => {
+          this.currentDocumentStatus.set(doc.status);
+          if (doc.status === 'READY' || doc.status === 'FAILED') {
+            this.stopStatusPolling();
+          }
+        },
+        error: () => {
+          this.stopStatusPolling();
+        },
+        complete: () => {
+          this.isPollingStatus.set(false);
+        },
+      });
+  }
+
+  stopStatusPolling(): void {
+    if (this.pollSub && !this.pollSub.closed) {
+      this.pollSub.unsubscribe();
+    }
+    this.isPollingStatus.set(false);
   }
 
   formatBytes(bytes: number): string {

@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { Subject } from 'rxjs';
+import { of, Subject } from 'rxjs';
 
 import {
   DocumentItem,
@@ -247,5 +247,59 @@ describe('DocumentUploadComponent', () => {
     expect(component.formatBytes(0)).toBe('0 B');
     expect(component.formatBytes(1024)).toBe('1 KB');
     expect(component.formatBytes(5 * 1024 * 1024)).toBe('5 MB');
+  });
+
+  it('bloquea la carga para usuarios con rol VIEWER y muestra advertencia', () => {
+    workspaceService.activeWorkspace.set({
+      ...mockWorkspace,
+      role: 'VIEWER',
+    });
+
+    const fixture = TestBed.createComponent(DocumentUploadComponent);
+    fixture.detectChanges();
+    const comp = fixture.componentInstance;
+
+    expect(comp.canUpload()).toBe(false);
+    expect(fixture.nativeElement.querySelector('.alert-warning')).toBeTruthy();
+
+    const validFile = new File(['data'], 'test.pdf', { type: 'application/pdf' });
+    comp.handleFileSelected(validFile);
+
+    expect(comp.selectedFile).toBeNull();
+    expect(comp.validationError).toContain('rol VIEWER');
+  });
+
+  it('triggerFileInput dispara click en el input cuando canUpload es true', () => {
+    const mockInput = { click: vi.fn() } as unknown as HTMLInputElement;
+    component.triggerFileInput(mockInput);
+    expect(mockInput.click).toHaveBeenCalled();
+  });
+
+  it('inicia sondeo de estado tras completar la carga y actualiza a READY', () => {
+    const mockDoc: DocumentItem = {
+      id: 'doc-ready-1',
+      workspace_id: 'ws-test-123',
+      original_filename: 'balance.pdf',
+      storage_key: 'key',
+      content_type: 'application/pdf',
+      size_bytes: 1024,
+      status: 'PROCESSING',
+      checksum_sha256: null,
+      technical_metadata: {},
+      created_at: '',
+      updated_at: '',
+      uploaded_by: '',
+    };
+
+    vi.spyOn(documentService, 'getDocument').mockReturnValue(
+      of({ ...mockDoc, status: 'READY' })
+    );
+
+    component.startStatusPolling('doc-ready-1');
+    expect(component.isPollingStatus()).toBe(true);
+
+    // Detener polling explícito
+    component.stopStatusPolling();
+    expect(component.isPollingStatus()).toBe(false);
   });
 });
