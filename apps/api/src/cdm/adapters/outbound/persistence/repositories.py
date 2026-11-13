@@ -164,6 +164,8 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
             if existing.workspace_id != document.workspace_id:
                 raise ValueError("No está permitido transferir un documento entre workspaces.")
             existing.original_filename = document.original_filename
+            existing.content_type = document.content_type
+            existing.size_bytes = document.size_bytes
             existing.status = document.status.value
             existing.technical_metadata = document.technical_metadata
             existing.checksum_sha256 = document.checksum_sha256

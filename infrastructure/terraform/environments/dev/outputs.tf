@@ -99,3 +99,13 @@ output "document_events_dlq_url" {
   description = "URL de la Dead Letter Queue (DLQ) para eventos fallidos."
   value       = module.sqs_worker_queue.dlq_url
 }
+
+output "lambda_worker_function_name" {
+  description = "Nombre de la función Lambda worker para eventos asíncronos."
+  value       = module.lambda_worker.function_name
+}
+
+output "lambda_worker_function_arn" {
+  description = "ARN de la función Lambda worker para eventos asíncronos."
+  value       = module.lambda_worker.function_arn
+}
