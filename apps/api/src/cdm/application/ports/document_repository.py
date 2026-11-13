@@ -54,6 +54,11 @@ class DocumentRepositoryPort(Protocol):
         """Cuenta el total de documentos pertenecientes a un workspace específico."""
         ...
 
-    def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:
-        """Elimina lógicamente un documento dentro del workspace especificado."""
+    def soft_delete(
+        self,
+        workspace_id: UUID,
+        document_id: UUID,
+        deleted_by: UUID | None = None,
+    ) -> bool:
+        """Elimina lógicamente un documento registrando opcionalmente el actor."""
         ...

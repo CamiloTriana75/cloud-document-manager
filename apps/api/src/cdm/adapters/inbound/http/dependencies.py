@@ -212,6 +212,7 @@ def get_delete_document_use_case(
 ) -> DeleteDocumentUseCase:
     return DeleteDocumentUseCase(
         document_repo=SqlAlchemyDocumentRepository(session),
+        audit_repo=SqlAlchemyAuditRepository(session),
     )
 
 

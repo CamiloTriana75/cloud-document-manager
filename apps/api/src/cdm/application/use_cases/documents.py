@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
+from cdm.application.ports.audit_repository import AuditRepositoryPort
 from cdm.application.ports.document_repository import DocumentRepositoryPort
 from cdm.application.ports.storage import StoragePort
 from cdm.application.ports.upload_session_repository import UploadSessionRepositoryPort
+from cdm.domain.audit import AuditAction, AuditEvent, ResourceType
 from cdm.domain.document import Document, DocumentQueryFilter, DocumentStatus
 from cdm.domain.errors import (
     ConflictError,
@@ -228,10 +230,15 @@ class AuthorizeDocumentDownloadUseCase:
 
 
 class DeleteDocumentUseCase:
-    """Caso de uso: Eliminación lógica de un documento del workspace (ADR-0001)."""
+    """Caso de uso: Eliminación lógica de un documento del workspace (ADR-0001 / CDM-43)."""
 
-    def __init__(self, document_repo: DocumentRepositoryPort) -> None:
+    def __init__(
+        self,
+        document_repo: DocumentRepositoryPort,
+        audit_repo: AuditRepositoryPort | None = None,
+    ) -> None:
         self._doc_repo = document_repo
+        self._audit_repo = audit_repo
 
     def execute(self, tenant: TenantContext, document_id: UUID) -> None:
         # ADR-0001: Solo EDITOR, ADMIN o OWNER pueden eliminar documentos
@@ -249,9 +256,36 @@ class DeleteDocumentUseCase:
         deleted = self._doc_repo.soft_delete(
             workspace_id=tenant.workspace_id,
             document_id=document_id,
+            deleted_by=tenant.user_id,
         )
         if not deleted:
             raise DocumentNotFoundError("El documento solicitado no existe o no tiene acceso a él.")
+
+        # Auditoría del evento (CDM-40 / CDM-43)
+        if self._audit_repo:
+            now = datetime.now(UTC)
+            self._audit_repo.save(
+                AuditEvent.record(
+                    workspace_id=tenant.workspace_id,
+                    actor_user_id=tenant.user_id,
+                    action=AuditAction.DOCUMENT_DELETED,
+                    resource_type=ResourceType.DOCUMENT,
+                    resource_id=document.id,
+                    details={
+                        "original_filename": document.original_filename,
+                        "deleted_at": now.isoformat(),
+                        "actor_role": tenant.role.value,
+                    },
+                )
+            )
+
+        logger.info(
+            "Document logically deleted: tenant=%s actor=%s doc_id=%s filename=%s",
+            tenant.workspace_id,
+            tenant.user_id,
+            document.id,
+            document.original_filename,
+        )
 
 
 class CreateDocumentRecordUseCase:

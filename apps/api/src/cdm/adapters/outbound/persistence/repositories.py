@@ -281,7 +281,12 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         count = self._session.scalar(stmt)
         return count or 0
 
-    def soft_delete(self, workspace_id: UUID, document_id: UUID) -> bool:
+    def soft_delete(
+        self,
+        workspace_id: UUID,
+        document_id: UUID,
+        deleted_by: UUID | None = None,
+    ) -> bool:
         stmt = select(DocumentModel).where(
             DocumentModel.id == document_id,
             DocumentModel.workspace_id == workspace_id,
@@ -295,6 +300,11 @@ class SqlAlchemyDocumentRepository(DocumentRepositoryPort):
         model.deleted_at = now
         model.status = DocumentStatus.DELETED.value
         model.updated_at = now
+        meta = dict(model.technical_metadata) if model.technical_metadata else {}
+        meta["deleted_at"] = now.isoformat()
+        if deleted_by:
+            meta["deleted_by"] = str(deleted_by)
+        model.technical_metadata = meta
         self._session.flush()
         return True
 
