@@ -142,3 +142,9 @@ class UploadSessionExpiredError(ConflictError):
     """La sesión de carga ha expirado y ya no puede ser completada."""
 
     code = "upload_session_expired"
+
+
+class InvalidS3EventError(DomainError):
+    """Estructura o contenido de evento S3 / SQS inválido o malformado."""
+
+    code = "invalid_s3_event"
