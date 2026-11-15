@@ -78,8 +78,9 @@ def create_zip(source_dir: Path, output_zip: Path) -> None:
     output_zip.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(output_zip, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, dirs, files in os.walk(source_dir):
-            # Omitir cachés de Python
-            dirs[:] = [d for d in dirs if d != "__pycache__" and not d.endswith(".dist-info")]
+            # Omitir cachés de Python. Los .dist-info se conservan: SQLAlchemy 2.1 lee la
+            # versión del driver (psycopg) con importlib.metadata y sin ellos la rechaza.
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
             for file in files:
                 if file.endswith((".pyc", ".pyo")):
                     continue

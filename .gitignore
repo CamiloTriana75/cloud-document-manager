@@ -36,6 +36,9 @@ playwright/.cache/
 *.tfstate
 *.tfstate.*
 tfplan
+# Valores reales de variables (p. ej. DSN de la base de datos): nunca se versionan
+*.tfvars
+*.tfvars.json
 plan.out
 crash.log
 
@@ -57,3 +60,7 @@ Thumbs.db
 # --- Docker / local ---
 .docker/
 *.local.yaml
+
+# --- Vercel (enlace local del proyecto) y artefactos de herramientas de navegador ---
+.vercel
+.playwright-mcp/
