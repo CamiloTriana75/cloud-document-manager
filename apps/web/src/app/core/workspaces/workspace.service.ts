@@ -2,7 +2,6 @@ import { HttpClient } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { catchError, map, Observable, tap, throwError } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
 import {
   AddMemberPayload,
   ApiDataEnvelope,
@@ -18,9 +17,7 @@ const ACTIVE_WORKSPACE_STORAGE_KEY = 'cdm_active_workspace_id';
 })
 export class WorkspaceService {
   private readonly http = inject(HttpClient);
-  private readonly baseUrl = environment.apiBaseUrl
-    ? `${environment.apiBaseUrl}/api/v1/workspaces`
-    : '/api/v1/workspaces';
+  private readonly baseUrl = '/api/v1/workspaces';
 
   readonly workspaces = signal<Workspace[]>([]);
   readonly activeWorkspace = signal<Workspace | null>(null);

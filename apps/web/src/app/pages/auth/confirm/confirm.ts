@@ -1,16 +1,18 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
 import { AuthService } from '../../../core/auth/auth.service';
+import { AlertComponent } from '../../../shared/ui/alert/alert';
+import { IconComponent } from '../../../shared/ui/icon/icon';
+import { AuthLayoutComponent } from '../auth-layout/auth-layout';
 
 @Component({
   selector: 'app-confirm',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AlertComponent, AuthLayoutComponent, IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './confirm.html',
-  styleUrls: ['./confirm.css'],
+  styleUrls: ['../auth-form.css'],
 })
 export class ConfirmComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
@@ -21,6 +23,7 @@ export class ConfirmComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
   readonly isSubmitting = signal<boolean>(false);
+  readonly isResending = signal<boolean>(false);
 
   readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -32,6 +35,11 @@ export class ConfirmComponent implements OnInit {
     if (emailParam) {
       this.form.patchValue({ email: emailParam });
     }
+  }
+
+  invalid(control: 'email' | 'code'): boolean {
+    const field = this.form.controls[control];
+    return field.invalid && field.touched;
   }
 
   onSubmit(): void {
@@ -46,24 +54,46 @@ export class ConfirmComponent implements OnInit {
 
     const { email, code } = this.form.getRawValue();
 
-    this.authService
-      .confirmRegistration({ email: email!, code: code! })
-      .subscribe({
-        next: () => {
-          this.isSubmitting.set(false);
-          this.successMessage.set(
-            '¡Cuenta confirmada exitosamente! Ya puedes iniciar sesión.'
-          );
-          setTimeout(() => {
-            this.router.navigate(['/auth/login']);
-          }, 2000);
-        },
-        error: (err) => {
-          this.isSubmitting.set(false);
-          this.errorMessage.set(
-            err.message || 'Código de confirmación incorrecto o expirado.'
-          );
-        },
-      });
+    this.authService.confirmRegistration({ email: email!, code: code! }).subscribe({
+      next: () => {
+        this.isSubmitting.set(false);
+        this.successMessage.set('¡Cuenta confirmada exitosamente! Ya puedes iniciar sesión.');
+        setTimeout(
+          () =>
+            void this.router.navigate(['/auth/login'], {
+              queryParams: { confirmed: 'true', email },
+            }),
+          1500,
+        );
+      },
+      error: (err) => {
+        this.isSubmitting.set(false);
+        this.errorMessage.set(err.message || 'Código de confirmación incorrecto o expirado.');
+      },
+    });
+  }
+
+  /** Envía un código nuevo al correo indicado (los códigos de Cognito caducan). */
+  resendCode(): void {
+    const emailControl = this.form.controls.email;
+    if (emailControl.invalid) {
+      emailControl.markAsTouched();
+      return;
+    }
+
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
+    this.isResending.set(true);
+
+    this.authService.resendConfirmationCode(emailControl.value!).subscribe({
+      next: () => {
+        this.isResending.set(false);
+        this.successMessage.set('Te enviamos un nuevo código. Revisa tu correo.');
+      },
+      error: (err: unknown) => {
+        this.isResending.set(false);
+        this.errorMessage.set(err instanceof Error ? err.message : 'No se pudo reenviar el código.');
+      },
+    });
   }
 }

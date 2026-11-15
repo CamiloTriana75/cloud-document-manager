@@ -1,5 +1,4 @@
-import { CommonModule } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import {
   FormBuilder,
   FormControl,
@@ -10,16 +9,20 @@ import {
 import { Router, RouterLink } from '@angular/router';
 
 import { WorkspaceService } from '../../../core/workspaces/workspace.service';
+import { AlertComponent } from '../../../shared/ui/alert/alert';
+import { CoilSceneComponent } from '../../../shared/ui/coil-scene/coil-scene';
+import { IconComponent } from '../../../shared/ui/icon/icon';
 
 interface WorkspaceForm {
   name: FormControl<string>;
   slug: FormControl<string>;
 }
 
+/** Alta de un workspace; quien lo crea queda como OWNER y entra directamente a su catálogo. */
 @Component({
   selector: 'app-workspace-create',
-  standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, AlertComponent, CoilSceneComponent, IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './create.html',
   styleUrl: './create.css',
 })
@@ -35,25 +38,25 @@ export class WorkspaceCreateComponent {
     }),
     slug: this.fb.control('', {
       nonNullable: true,
-      validators: [
-        Validators.pattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-        Validators.maxLength(100),
-      ],
+      validators: [Validators.pattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/), Validators.maxLength(100)],
     }),
   });
 
   readonly isSubmitting = signal<boolean>(false);
   readonly submitError = signal<string | null>(null);
+  protected readonly slugPreview = signal('');
 
   onNameChange(): void {
-    const nameControl = this.form.controls.name;
     const slugControl = this.form.controls.slug;
-
-    // Si el usuario no ha editado manualmente el slug, sugerirlo automáticamente
+    // Mientras el usuario no edite el slug a mano, se sugiere a partir del nombre.
     if (!slugControl.dirty || !slugControl.value) {
-      const slugValue = this.slugify(nameControl.value);
-      slugControl.setValue(slugValue);
+      slugControl.setValue(this.slugify(this.form.controls.name.value));
     }
+    this.slugPreview.set(slugControl.value);
+  }
+
+  onSlugChange(): void {
+    this.slugPreview.set(this.form.controls.slug.value);
   }
 
   onSubmit(): void {
@@ -72,9 +75,9 @@ export class WorkspaceCreateComponent {
     };
 
     this.workspaceService.createWorkspace(payload).subscribe({
-      next: () => {
+      next: (workspace) => {
         this.isSubmitting.set(false);
-        this.router.navigate(['/']);
+        void this.router.navigate(['/workspaces', workspace.id, 'documents']);
       },
       error: (err) => {
         this.isSubmitting.set(false);
@@ -86,11 +89,16 @@ export class WorkspaceCreateComponent {
     });
   }
 
+  protected invalid(control: 'name' | 'slug'): boolean {
+    const field = this.form.controls[control];
+    return field.invalid && field.touched;
+  }
+
   private slugify(text: string): string {
     return text
       .toLowerCase()
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[̀-ͯ]/g, '')
       .replace(/[^a-z0-9\s-]/g, '')
       .trim()
       .replace(/[\s-]+/g, '-');

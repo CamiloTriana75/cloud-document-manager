@@ -1,16 +1,19 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { catchError, map, Observable, of, tap, throwError } from 'rxjs';
+import { finalize, map, Observable, of, catchError, tap, throwError } from 'rxjs';
 
-import { environment } from '../../../environments/environment';
+import { COGNITO_CONFIG } from './auth-config';
+import { AuthError } from './auth-errors';
 import {
   AuthResponse,
   AuthTokens,
   ConfirmRegistrationData,
   LoginCredentials,
   RegisterData,
+  RegisterResult,
   UserSession,
 } from './auth.models';
+import { decodeJwtPayload } from './jwt';
 
 const STORAGE_KEY = 'cdm_auth_tokens';
 
@@ -25,11 +28,22 @@ interface CognitoInitiateAuthResponse {
   AuthenticationResult?: CognitoAuthResult;
 }
 
+interface CognitoSignUpResponse {
+  UserConfirmed?: boolean;
+}
+
+/**
+ * Autenticación contra Amazon Cognito (User Pool, flujo USER_PASSWORD_AUTH) y sesión local.
+ *
+ * Sin `clientId` configurado funciona en modo de desarrollo local con tokens sin firma,
+ * que el backend solo acepta con CDM_AUTH_MOCK_ENABLED=true y sin User Pool (CDM-130).
+ */
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
   private readonly http = inject(HttpClient);
+  private readonly cognito = inject(COGNITO_CONFIG);
 
   readonly currentUser = signal<UserSession | null>(null);
   readonly isLoading = signal<boolean>(false);
@@ -39,137 +53,103 @@ export class AuthService {
     this.restoreSession();
   }
 
-  /**
-   * Inicia sesión con correo y contraseña contra Amazon Cognito.
-   */
+  private get usesCognito(): boolean {
+    return Boolean(this.cognito.clientId);
+  }
+
+  /** Inicia sesión con correo y contraseña. */
   login(credentials: LoginCredentials): Observable<AuthResponse> {
     this.isLoading.set(true);
 
-    if (!environment.cognito.clientId) {
+    if (!this.usesCognito) {
       return this.mockLogin(credentials);
     }
 
-    const endpoint = `https://cognito-idp.${environment.cognito.region}.amazonaws.com/`;
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/x-amz-json-1.1',
-      'X-Amz-Target': 'AWSCognitoIdentityProviderService.InitiateAuth',
-    });
-
-    const body = {
+    return this.callCognito<CognitoInitiateAuthResponse>('InitiateAuth', {
       AuthFlow: 'USER_PASSWORD_AUTH',
-      ClientId: environment.cognito.clientId,
+      ClientId: this.cognito.clientId,
       AuthParameters: {
         USERNAME: credentials.email,
         PASSWORD: credentials.password,
       },
-    };
-
-    return this.http.post<CognitoInitiateAuthResponse>(endpoint, body, { headers }).pipe(
+    }).pipe(
       map((res) => {
         const result = res.AuthenticationResult;
         if (!result) {
-          throw new Error('Respuesta de autenticación incompleta de Cognito.');
+          throw new AuthError('unknown', 'Respuesta de autenticación incompleta de Cognito.');
         }
 
-        const expiresInMs = (result.ExpiresIn || 3600) * 1000;
         const tokens: AuthTokens = {
           accessToken: result.AccessToken,
           idToken: result.IdToken,
           refreshToken: result.RefreshToken || '',
-          expiresAt: Date.now() + expiresInMs,
+          expiresAt: Date.now() + (result.ExpiresIn || 3600) * 1000,
         };
-
-        const user = this.decodeUserFromToken(tokens.idToken, credentials.email);
-        return { tokens, user };
+        return { tokens, user: this.decodeUserFromToken(tokens.idToken, credentials.email) };
       }),
       tap((authResponse) => {
         this.saveTokens(authResponse.tokens);
         this.currentUser.set(authResponse.user);
-        this.isLoading.set(false);
       }),
-      catchError((error) => {
-        this.isLoading.set(false);
-        const userMessage = this.normalizeCognitoError(error);
-        return throwError(() => new Error(userMessage));
-      })
+      finalize(() => this.isLoading.set(false)),
     );
   }
 
-  /**
-   * Registro de un nuevo usuario en Amazon Cognito.
-   */
-  register(data: RegisterData): Observable<void> {
+  /** Registra una cuenta. Indica si Cognito exige confirmarla con el código enviado por correo. */
+  register(data: RegisterData): Observable<RegisterResult> {
     this.isLoading.set(true);
 
-    if (!environment.cognito.clientId) {
+    if (!this.usesCognito) {
       return this.mockRegister(data);
     }
-
-    const endpoint = `https://cognito-idp.${environment.cognito.region}.amazonaws.com/`;
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/x-amz-json-1.1',
-      'X-Amz-Target': 'AWSCognitoIdentityProviderService.SignUp',
-    });
 
     const userAttributes = [{ Name: 'email', Value: data.email }];
     if (data.name) {
       userAttributes.push({ Name: 'name', Value: data.name });
     }
 
-    const body = {
-      ClientId: environment.cognito.clientId,
+    return this.callCognito<CognitoSignUpResponse>('SignUp', {
+      ClientId: this.cognito.clientId,
       Username: data.email,
       Password: data.password,
       UserAttributes: userAttributes,
-    };
-
-    return this.http.post<unknown>(endpoint, body, { headers }).pipe(
-      map(() => void 0),
-      tap(() => this.isLoading.set(false)),
-      catchError((error) => {
-        this.isLoading.set(false);
-        const userMessage = this.normalizeCognitoError(error);
-        return throwError(() => new Error(userMessage));
-      })
+    }).pipe(
+      map((res) => ({ userConfirmed: Boolean(res.UserConfirmed) })),
+      finalize(() => this.isLoading.set(false)),
     );
   }
 
-  /**
-   * Confirmación del código de 6 dígitos enviado por correo.
-   */
+  /** Confirma la cuenta con el código de 6 dígitos enviado por correo. */
   confirmRegistration(data: ConfirmRegistrationData): Observable<void> {
     this.isLoading.set(true);
 
-    if (!environment.cognito.clientId) {
+    if (!this.usesCognito) {
       return this.mockConfirm(data);
     }
 
-    const endpoint = `https://cognito-idp.${environment.cognito.region}.amazonaws.com/`;
-    const headers = new HttpHeaders({
-      'Content-Type': 'application/x-amz-json-1.1',
-      'X-Amz-Target': 'AWSCognitoIdentityProviderService.ConfirmSignUp',
-    });
-
-    const body = {
-      ClientId: environment.cognito.clientId,
+    return this.callCognito<unknown>('ConfirmSignUp', {
+      ClientId: this.cognito.clientId,
       Username: data.email,
       ConfirmationCode: data.code,
-    };
-
-    return this.http.post<unknown>(endpoint, body, { headers }).pipe(
+    }).pipe(
       map(() => void 0),
-      tap(() => this.isLoading.set(false)),
-      catchError((error) => {
-        this.isLoading.set(false);
-        const userMessage = this.normalizeCognitoError(error);
-        return throwError(() => new Error(userMessage));
-      })
+      finalize(() => this.isLoading.set(false)),
     );
   }
 
-  /**
-   * Cierre de sesión y revocación local de tokens.
-   */
+  /** Envía de nuevo el código de confirmación al correo de la cuenta. */
+  resendConfirmationCode(email: string): Observable<void> {
+    if (!this.usesCognito) {
+      return of(void 0);
+    }
+
+    return this.callCognito<unknown>('ResendConfirmationCode', {
+      ClientId: this.cognito.clientId,
+      Username: email,
+    }).pipe(map(() => void 0));
+  }
+
+  /** Cierre de sesión y limpieza local de tokens. */
   logout(): void {
     try {
       sessionStorage.removeItem(STORAGE_KEY);
@@ -180,33 +160,42 @@ export class AuthService {
   }
 
   /**
-   * Retorna el Access Token actual si no ha expirado.
+   * ID token vigente para autenticar las peticiones a la API de CDM.
+   * Se usa el ID token (y no el access token) porque incluye `email` y `email_verified`,
+   * que el backend necesita para identificar al usuario y vincular invitaciones.
    */
-  getAccessToken(): string | null {
+  getIdToken(): string | null {
     const tokens = this.getStoredTokens();
     if (!tokens || this.isTokenExpired(tokens)) {
       return null;
     }
-    return tokens.accessToken;
+    return tokens.idToken;
   }
 
-  /**
-   * Comprueba si el token almacenado ha caducado.
-   */
+  /** Comprueba si el token almacenado ha caducado (con 30 s de margen). */
   isTokenExpired(tokens?: AuthTokens | null): boolean {
     const t = tokens ?? this.getStoredTokens();
     if (!t) return true;
-    // Margen de seguridad de 30 segundos
     return Date.now() >= t.expiresAt - 30_000;
   }
 
-  // --- Métodos privados de soporte y sesión ---
+  // --- Soporte de sesión ---
+
+  private callCognito<T>(action: string, body: object): Observable<T> {
+    const endpoint = `https://cognito-idp.${this.cognito.region}.amazonaws.com/`;
+    const headers = new HttpHeaders({
+      'Content-Type': 'application/x-amz-json-1.1',
+      'X-Amz-Target': `AWSCognitoIdentityProviderService.${action}`,
+    });
+    return this.http
+      .post<T>(endpoint, body, { headers })
+      .pipe(catchError((error: unknown) => throwError(() => this.toAuthError(error))));
+  }
 
   private restoreSession(): void {
     const tokens = this.getStoredTokens();
     if (tokens && !this.isTokenExpired(tokens)) {
-      const user = this.decodeUserFromToken(tokens.idToken, 'usuario@cdm.local');
-      this.currentUser.set(user);
+      this.currentUser.set(this.decodeUserFromToken(tokens.idToken, ''));
     } else if (tokens) {
       this.logout();
     }
@@ -231,37 +220,24 @@ export class AuthService {
   }
 
   private decodeUserFromToken(idToken: string, fallbackEmail: string): UserSession {
-    try {
-      const parts = idToken.split('.');
-      if (parts.length >= 2) {
-        const payloadIndex = parts.length >= 4 ? 2 : 1;
-        const payload = JSON.parse(atob(parts[payloadIndex]));
-        return {
-          sub: payload.sub || 'mock-sub',
-          email: payload.email || fallbackEmail,
-          name: payload.name || undefined,
-          emailVerified: Boolean(payload.email_verified),
-        };
-      }
-    } catch {
-      // Si el token no es un JWT estándar (mock), usar fallback
-    }
-
+    const payload = decodeJwtPayload(idToken);
+    const email = typeof payload?.['email'] === 'string' ? payload['email'] : fallbackEmail;
+    const name = typeof payload?.['name'] === 'string' ? payload['name'] : undefined;
     return {
-      sub: 'user-' + Math.random().toString(36).substring(2, 9),
-      email: fallbackEmail,
-      name: fallbackEmail.split('@')[0],
-      emailVerified: true,
+      sub: typeof payload?.['sub'] === 'string' ? payload['sub'] : '',
+      email,
+      name: name || undefined,
+      emailVerified: payload?.['email_verified'] === true,
     };
   }
 
-  private normalizeCognitoError(error: unknown): string {
-    const err = error as {
-      error?: { __type?: string; code?: string; message?: string };
-      message?: string;
-    };
+  private toAuthError(error: unknown): AuthError {
+    if (error instanceof AuthError) {
+      return error;
+    }
+    const err = error as { error?: { __type?: string; code?: string; message?: string } };
     const errorType = err?.error?.__type || err?.error?.code || '';
-    const message = err?.error?.message || err?.message || '';
+    const message = err?.error?.message || '';
 
     // Prevención de enumeración de cuentas: mensajes genéricos y seguros
     if (
@@ -269,99 +245,98 @@ export class AuthService {
       errorType.includes('UserNotFoundException') ||
       message.includes('Incorrect username or password')
     ) {
-      return 'Correo electrónico o contraseña incorrectos.';
+      return new AuthError('invalid-credentials', 'Correo electrónico o contraseña incorrectos.');
     }
-
     if (errorType.includes('UserNotConfirmedException')) {
-      return 'Tu cuenta aún no ha sido confirmada. Revisa tu correo electrónico para ingresar el código.';
+      return new AuthError(
+        'user-not-confirmed',
+        'Tu cuenta aún no ha sido confirmada. Ingresa el código que enviamos a tu correo.',
+      );
     }
-
     if (errorType.includes('UsernameExistsException')) {
-      return 'Ya existe una cuenta con este correo electrónico o está pendiente de confirmación.';
+      return new AuthError(
+        'username-exists',
+        'Ya existe una cuenta con este correo electrónico o está pendiente de confirmación.',
+      );
     }
-
     if (errorType.includes('InvalidPasswordException')) {
-      return 'La contraseña no cumple los requisitos: mínimo 8 caracteres, mayúsculas, minúsculas, números y símbolos.';
+      return new AuthError(
+        'invalid-password',
+        'La contraseña no cumple los requisitos: mínimo 8 caracteres, mayúsculas, minúsculas, números y símbolos.',
+      );
     }
-
-    if (errorType.includes('CodeMismatchException')) {
-      return 'El código de verificación es incorrecto o ha caducado.';
+    if (errorType.includes('CodeMismatchException') || errorType.includes('ExpiredCodeException')) {
+      return new AuthError('code-mismatch', 'El código de verificación es incorrecto o ha caducado.');
     }
-
-    return 'Ocurrió un error al procesar la solicitud. Por favor intenta de nuevo.';
+    if (errorType.includes('LimitExceededException') || errorType.includes('TooManyRequestsException')) {
+      return new AuthError(
+        'too-many-attempts',
+        'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.',
+      );
+    }
+    return new AuthError('unknown', 'Ocurrió un error al procesar la solicitud. Por favor intenta de nuevo.');
   }
 
-  // --- Emuladores para desarrollo local offline ---
+  // --- Modo de desarrollo local sin Cognito ---
 
   private createMockJwt(prefix: string, payload: Record<string, unknown>): string {
-    const b64 = (str: string) => btoa(unescape(encodeURIComponent(str)));
+    const b64 = (str: string) => btoa(String.fromCharCode(...new TextEncoder().encode(str)));
     const header = b64(JSON.stringify({ alg: 'none', typ: 'JWT' }));
     const body = b64(JSON.stringify(payload));
     return `${prefix}.${header}.${body}.mock-signature`;
   }
 
   private mockLogin(credentials: LoginCredentials): Observable<AuthResponse> {
+    this.isLoading.set(false);
     if (!credentials.email.includes('@') || credentials.password.length < 6) {
-      this.isLoading.set(false);
-      return throwError(() => new Error('Correo electrónico o contraseña incorrectos.'));
+      return throwError(
+        () => new AuthError('invalid-credentials', 'Correo electrónico o contraseña incorrectos.'),
+      );
     }
 
-    const userSub = 'mock-sub-' + credentials.email.replace(/[^a-zA-Z0-9]/g, '');
-    const now = Math.floor(Date.now() / 1000);
-    const accessToken = this.createMockJwt('mock-access-token-' + Date.now(), {
-      sub: userSub,
-      email: credentials.email,
-      name: credentials.email.split('@')[0],
-      email_verified: true,
-      token_use: 'access',
-      iat: now,
-      exp: now + 3600,
-    });
-    const idToken = this.createMockJwt('mock-id-token-' + Date.now(), {
-      sub: userSub,
-      email: credentials.email,
-      name: credentials.email.split('@')[0],
-      email_verified: true,
-      token_use: 'id',
-      iat: now,
-      exp: now + 3600,
-    });
-
-    const tokens: AuthTokens = {
-      accessToken,
-      idToken,
-      refreshToken: 'mock-refresh-token-' + Date.now(),
-      expiresAt: Date.now() + 3600 * 1000,
-    };
-
     const user: UserSession = {
-      sub: userSub,
+      sub: 'mock-sub-' + credentials.email.replace(/[^a-zA-Z0-9]/g, ''),
       email: credentials.email,
       name: credentials.email.split('@')[0],
       emailVerified: true,
     };
+    const now = Math.floor(Date.now() / 1000);
+    const claims = {
+      sub: user.sub,
+      email: user.email,
+      name: user.name,
+      email_verified: true,
+      iat: now,
+      exp: now + 3600,
+    };
+    const tokens: AuthTokens = {
+      accessToken: this.createMockJwt('mock-access-token-' + Date.now(), { ...claims, token_use: 'access' }),
+      idToken: this.createMockJwt('mock-id-token-' + Date.now(), { ...claims, token_use: 'id' }),
+      refreshToken: 'mock-refresh-token-' + Date.now(),
+      expiresAt: Date.now() + 3600 * 1000,
+    };
 
     this.saveTokens(tokens);
     this.currentUser.set(user);
-    this.isLoading.set(false);
-
     return of({ tokens, user });
   }
 
-  private mockRegister(data: RegisterData): Observable<void> {
+  private mockRegister(data: RegisterData): Observable<RegisterResult> {
     this.isLoading.set(false);
     if (!data.email.includes('@') || data.password.length < 8) {
       return throwError(
-        () => new Error('La contraseña debe tener mínimo 8 caracteres.')
+        () => new AuthError('invalid-password', 'La contraseña debe tener mínimo 8 caracteres.'),
       );
     }
-    return of(void 0);
+    return of({ userConfirmed: true });
   }
 
   private mockConfirm(data: ConfirmRegistrationData): Observable<void> {
     this.isLoading.set(false);
-    if (data.code !== '123456' && data.code.length !== 6) {
-      return throwError(() => new Error('El código de verificación es incorrecto.'));
+    if (!/^\d{6}$/.test(data.code)) {
+      return throwError(
+        () => new AuthError('code-mismatch', 'El código de verificación es incorrecto.'),
+      );
     }
     return of(void 0);
   }

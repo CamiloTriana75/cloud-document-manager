@@ -1,247 +1,176 @@
-import { CommonModule } from '@angular/common';
-import {
-  Component,
-  computed,
-  inject,
-  OnDestroy,
-  OnInit,
-  signal,
-} from '@angular/core';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { interval, Subscription, switchMap, take } from 'rxjs';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
-import {
-  ALLOWED_UPLOAD_EXTENSIONS,
-  DocumentStatus,
-  MAX_UPLOAD_SIZE_BYTES,
-  UploadProgressState,
-} from '../../../core/documents/document.models';
-import { DocumentService } from '../../../core/documents/document.service';
+import { DOCUMENT_STATUS_META } from '../../../core/documents/document-status';
+import { ALLOWED_UPLOAD_EXTENSIONS } from '../../../core/documents/document.models';
+import { FILE_KIND_ICON, fileKind } from '../../../core/documents/file-kind';
+import { validateUploadFile } from '../../../core/documents/upload-policy';
+import { UploadQueueItem, UploadQueueService } from '../../../core/documents/upload-queue.service';
+import { hasRoleAtLeast } from '../../../core/workspaces/workspace-roles';
 import { WorkspaceService } from '../../../core/workspaces/workspace.service';
+import { BytesPipe } from '../../../shared/format/bytes.pipe';
+import { AlertComponent } from '../../../shared/ui/alert/alert';
+import { CoilSceneComponent } from '../../../shared/ui/coil-scene/coil-scene';
+import { IconComponent } from '../../../shared/ui/icon/icon';
+import { IconName } from '../../../shared/ui/icon/icons';
 
+interface Rejection {
+  readonly name: string;
+  readonly reason: string;
+}
+
+const ACTIVE = new Set(['queued', 'requesting', 'uploading', 'completing']);
+const FINISHED = new Set(['completed', 'error', 'cancelled', 'rejected']);
+
+/** Carga multi-archivo directa a S3 (`/workspaces/:id/upload`) sobre la cola global. */
 @Component({
   selector: 'app-document-upload',
-  standalone: true,
-  imports: [CommonModule, RouterLink],
+  imports: [RouterLink, AlertComponent, BytesPipe, CoilSceneComponent, IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './upload.html',
   styleUrl: './upload.css',
 })
-export class DocumentUploadComponent implements OnInit, OnDestroy {
+export class DocumentUploadComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly documentService = inject(DocumentService);
-  readonly workspaceService = inject(WorkspaceService);
+  protected readonly workspaceService = inject(WorkspaceService);
+  private readonly queue = inject(UploadQueueService);
 
-  workspaceId = '';
-  workspaceName = '';
-  selectedFile: File | null = null;
-  isDragging = false;
-  validationError: string | null = null;
-  readonly uploadState = signal<UploadProgressState>({
-    status: 'idle',
-    progressPercentage: 0,
-    loadedBytes: 0,
-    totalBytes: 0,
+  protected readonly accept = ALLOWED_UPLOAD_EXTENSIONS.join(',');
+
+  protected readonly workspaceId = signal('');
+  protected readonly workspace = computed(() => {
+    const id = this.workspaceId();
+    const active = this.workspaceService.activeWorkspace();
+    return active?.id === id
+      ? active
+      : (this.workspaceService.workspaces().find((ws) => ws.id === id) ?? null);
   });
+  protected readonly canUpload = computed(() =>
+    hasRoleAtLeast(this.workspace()?.role, 'MEMBER'),
+  );
 
-  readonly currentDocumentStatus = signal<DocumentStatus | null>(null);
-  readonly isPollingStatus = signal<boolean>(false);
+  protected readonly staged = signal<File[]>([]);
+  protected readonly rejected = signal<Rejection[]>([]);
+  protected readonly dragging = signal(false);
 
-  private uploadSub?: Subscription;
-  private pollSub?: Subscription;
+  protected readonly items = computed(() =>
+    this.queue.items().filter((item) => item.workspaceId === this.workspaceId()),
+  );
+  protected readonly hasActive = computed(() => this.items().some((i) => ACTIVE.has(i.phase)));
+  protected readonly hasFinished = computed(() => this.items().some((i) => FINISHED.has(i.phase)));
+  protected readonly completed = computed(() =>
+    this.items().filter((item) => item.phase === 'completed'),
+  );
+  protected readonly lastCompleted = computed(() => this.completed().at(-1) ?? null);
+  protected readonly stagedBytes = computed(() =>
+    this.staged().reduce((sum, file) => sum + file.size, 0),
+  );
 
-  readonly allowedExtensions = ALLOWED_UPLOAD_EXTENSIONS;
-  readonly maxSizeBytes = MAX_UPLOAD_SIZE_BYTES;
-
-  /**
-   * Comprueba si el usuario tiene permisos de edición (ADR-0001: VIEWER es solo lectura).
-   */
-  readonly canUpload = computed(() => {
-    const role = this.workspaceService.activeWorkspace()?.role;
-    return role !== 'VIEWER';
-  });
-
-  ngOnInit(): void {
-    this.workspaceId = this.route.snapshot.paramMap.get('id') || '';
-    if (!this.workspaceId) {
-      this.router.navigate(['/']);
-      return;
-    }
-
-    const activeWs = this.workspaceService.activeWorkspace();
-    if (activeWs && activeWs.id === this.workspaceId) {
-      this.workspaceName = activeWs.name;
-    }
+  constructor() {
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      this.workspaceId.set(params.get('id') ?? '');
+      this.staged.set([]);
+      this.rejected.set([]);
+    });
   }
 
-  ngOnDestroy(): void {
-    this.cancelUpload();
-    this.stopStatusPolling();
-  }
-
-  onDragOver(event: DragEvent): void {
-    if (!this.canUpload()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragging = true;
-  }
-
-  onDragLeave(event: DragEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragging = false;
-  }
-
-  onDrop(event: DragEvent): void {
-    if (!this.canUpload()) return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.isDragging = false;
-
-    if (event.dataTransfer?.files && event.dataTransfer.files.length > 0) {
-      this.handleFileSelected(event.dataTransfer.files[0]);
-    }
-  }
-
-  onFileInputChange(event: Event): void {
+  protected onInputChange(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files && input.files.length > 0) {
-      this.handleFileSelected(input.files[0]);
-    }
+    this.addFiles(Array.from(input.files ?? []));
+    input.value = '';
   }
 
-  triggerFileInput(fileInput: HTMLInputElement): void {
-    if (this.canUpload()) {
-      fileInput.click();
-    }
-  }
-
-  handleFileSelected(file: File): void {
-    this.validationError = null;
-    this.selectedFile = null;
-
+  protected onDragOver(event: DragEvent): void {
     if (!this.canUpload()) {
-      this.validationError =
-        'No tienes permisos para subir archivos en este espacio (rol VIEWER).';
       return;
     }
+    event.preventDefault();
+    this.dragging.set(true);
+  }
 
-    // Validación de extensión
-    const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-    if (!this.allowedExtensions.includes(ext)) {
-      this.validationError = `El formato "${ext}" no está permitido. Formatos admitidos: ${this.allowedExtensions.join(', ')}.`;
+  protected onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.dragging.set(false);
+    if (this.canUpload()) {
+      this.addFiles(Array.from(event.dataTransfer?.files ?? []));
+    }
+  }
+
+  protected removeStaged(index: number): void {
+    this.staged.update((files) => files.filter((_, i) => i !== index));
+  }
+
+  protected startUpload(): void {
+    const files = this.staged();
+    if (files.length === 0 || !this.canUpload()) {
       return;
     }
+    this.queue.enqueue(this.workspaceId(), files);
+    this.staged.set([]);
+    this.rejected.set([]);
+  }
 
-    // Validación de tamaño
-    if (file.size <= 0) {
-      this.validationError = 'El archivo seleccionado está vacío (0 bytes).';
+  protected cancel(item: UploadQueueItem): void {
+    this.queue.cancel(item.id);
+  }
+
+  protected retry(item: UploadQueueItem): void {
+    this.queue.retry(item.id);
+  }
+
+  protected remove(item: UploadQueueItem): void {
+    this.queue.remove(item.id);
+  }
+
+  protected clearFinished(): void {
+    this.queue.clearFinished(this.workspaceId());
+  }
+
+  protected icon(file: File): IconName {
+    return FILE_KIND_ICON[fileKind(file.type)];
+  }
+
+  protected isActive(item: UploadQueueItem): boolean {
+    return ACTIVE.has(item.phase);
+  }
+
+  protected phaseLabel(item: UploadQueueItem): string {
+    switch (item.phase) {
+      case 'queued':
+        return 'En cola';
+      case 'requesting':
+        return 'Preparando URL prefirmada…';
+      case 'uploading':
+        return `Subiendo a S3 · ${item.progress}%`;
+      case 'completing':
+        return 'Verificando el archivo en S3…';
+      case 'completed':
+        return item.documentStatus
+          ? `Subido · ${DOCUMENT_STATUS_META[item.documentStatus].label}`
+          : 'Subido';
+      case 'cancelled':
+        return 'Carga cancelada';
+      default:
+        return item.error ?? 'No se pudo subir el archivo.';
+    }
+  }
+
+  private addFiles(files: File[]): void {
+    if (!this.canUpload() || files.length === 0) {
       return;
     }
-
-    if (file.size > this.maxSizeBytes) {
-      const maxMb = Math.round(this.maxSizeBytes / (1024 * 1024));
-      this.validationError = `El archivo supera el tamaño máximo permitido de ${maxMb} MB.`;
-      return;
+    const accepted: File[] = [];
+    const rejected: Rejection[] = [];
+    for (const file of files) {
+      const reason = validateUploadFile(file);
+      if (reason) {
+        rejected.push({ name: file.name, reason });
+      } else {
+        accepted.push(file);
+      }
     }
-
-    this.selectedFile = file;
-    this.uploadState.set({
-      status: 'idle',
-      progressPercentage: 0,
-      loadedBytes: 0,
-      totalBytes: file.size,
-    });
-  }
-
-  startUpload(): void {
-    if (!this.selectedFile || !this.workspaceId || !this.canUpload()) {
-      return;
-    }
-
-    this.stopStatusPolling();
-    this.currentDocumentStatus.set(null);
-
-    this.uploadSub = this.documentService
-      .uploadWithProgress(this.workspaceId, this.selectedFile)
-      .subscribe({
-        next: (state) => {
-          this.uploadState.set(state);
-          if (state.status === 'completed' && state.document) {
-            this.currentDocumentStatus.set(state.document.status);
-            this.startStatusPolling(state.document.id);
-          }
-        },
-      });
-  }
-
-  cancelUpload(): void {
-    if (this.uploadSub && !this.uploadSub.closed) {
-      this.uploadSub.unsubscribe();
-      this.uploadState.set({
-        status: 'cancelled',
-        progressPercentage: 0,
-        loadedBytes: 0,
-        totalBytes: this.selectedFile?.size || 0,
-        error: 'Carga cancelada por el usuario.',
-      });
-    }
-    this.stopStatusPolling();
-  }
-
-  resetForm(): void {
-    this.cancelUpload();
-    this.stopStatusPolling();
-    this.selectedFile = null;
-    this.validationError = null;
-    this.currentDocumentStatus.set(null);
-    this.uploadState.set({
-      status: 'idle',
-      progressPercentage: 0,
-      loadedBytes: 0,
-      totalBytes: 0,
-    });
-  }
-
-  startStatusPolling(documentId: string): void {
-    this.stopStatusPolling();
-    this.isPollingStatus.set(true);
-
-    this.pollSub = interval(2500)
-      .pipe(
-        take(8),
-        switchMap(() =>
-          this.documentService.getDocument(this.workspaceId, documentId)
-        )
-      )
-      .subscribe({
-        next: (doc) => {
-          this.currentDocumentStatus.set(doc.status);
-          if (doc.status === 'READY' || doc.status === 'FAILED') {
-            this.stopStatusPolling();
-          }
-        },
-        error: () => {
-          this.stopStatusPolling();
-        },
-        complete: () => {
-          this.isPollingStatus.set(false);
-        },
-      });
-  }
-
-  stopStatusPolling(): void {
-    if (this.pollSub && !this.pollSub.closed) {
-      this.pollSub.unsubscribe();
-    }
-    this.isPollingStatus.set(false);
-  }
-
-  formatBytes(bytes: number): string {
-    if (bytes === 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    this.staged.update((current) => [...current, ...accepted]);
+    this.rejected.set(rejected);
   }
 }

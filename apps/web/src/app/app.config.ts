@@ -7,7 +7,9 @@ import { provideRouter } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 
 import { routes } from './app.routes';
+import { apiBaseUrlInterceptor } from './core/api/api-base-url.interceptor';
 import { apiErrorInterceptor } from './core/api/api-error.interceptor';
+import { retryTransientInterceptor } from './core/api/retry-transient.interceptor';
 import { authInterceptor } from './core/auth/auth.interceptor';
 
 export const appConfig: ApplicationConfig = {
@@ -15,6 +17,13 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZonelessChangeDetection(),
     provideRouter(routes),
-    provideHttpClient(withInterceptors([authInterceptor, apiErrorInterceptor])),
+    provideHttpClient(
+      withInterceptors([
+        apiBaseUrlInterceptor,
+        authInterceptor,
+        apiErrorInterceptor,
+        retryTransientInterceptor,
+      ]),
+    ),
   ],
 };

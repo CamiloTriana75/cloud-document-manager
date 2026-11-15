@@ -1,559 +1,317 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   computed,
-  DestroyRef,
-  HostListener,
+  effect,
   inject,
-  OnInit,
   signal,
+  untracked,
 } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Subject, takeUntil } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { interval } from 'rxjs';
 
+import { PageVisibilityService } from '../../../core/browser/page-visibility.service';
+import { CountedStatus } from '../../../core/documents/document-stats.service';
 import {
-  DocumentFilterOptions,
-  DocumentItem,
-  DocumentStatus,
-} from '../../../core/documents/document.models';
+  DOCUMENT_TYPE_OPTIONS,
+  STATUS_FOLDERS,
+  StatusFilter,
+} from '../../../core/documents/document-status';
+import { DocumentItem } from '../../../core/documents/document.models';
 import { DocumentService } from '../../../core/documents/document.service';
+import { UploadQueueService } from '../../../core/documents/upload-queue.service';
+import { hasRoleAtLeast } from '../../../core/workspaces/workspace-roles';
 import { WorkspaceService } from '../../../core/workspaces/workspace.service';
+import { shortId } from '../../../shared/format/format-id';
+import { AlertComponent } from '../../../shared/ui/alert/alert';
+import { CoilSceneComponent } from '../../../shared/ui/coil-scene/coil-scene';
+import { DialogComponent } from '../../../shared/ui/dialog/dialog';
+import { EmptyStateComponent } from '../../../shared/ui/empty-state/empty-state';
+import { FolderTab, FolderTabsComponent } from '../../../shared/ui/folder-tabs/folder-tabs';
+import { IconComponent } from '../../../shared/ui/icon/icon';
+import { KpiCardComponent } from '../../../shared/ui/kpi-card/kpi-card';
+import { RoleLadderComponent } from '../../../shared/ui/role-ladder/role-ladder';
+import { BarSegment, SegmentedBarComponent } from '../../../shared/ui/segmented-bar/segmented-bar';
+import { SparklineComponent } from '../../../shared/ui/sparkline/sparkline';
+import { CatalogStore, PAGE_SIZE_OPTIONS } from './catalog.store';
+import { ActivityPanelComponent } from './components/activity-panel/activity-panel';
+import { DocumentDetailComponent } from './components/document-detail/document-detail';
+import { DocumentTableComponent } from './components/document-table/document-table';
 
-export type StatusFilterOption = 'ALL' | DocumentStatus;
+const POLL_INTERVAL_MS = 5000;
 
-export type SortColumn =
-  | 'original_filename'
-  | 'content_type'
-  | 'size_bytes'
-  | 'created_at'
-  | 'status';
-export type SortDirection = 'asc' | 'desc';
-
-export interface MimeOption {
-  label: string;
-  value: string;
+function percent(part: number, total: number): number {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
 }
 
-export const MIME_OPTIONS: MimeOption[] = [
-  { label: 'Todos los tipos', value: 'ALL' },
-  { label: 'PDFs (.pdf)', value: 'application/pdf' },
-  { label: 'Imágenes (PNG/JPG)', value: 'image/' },
-  { label: 'Documentos Word/Excel', value: 'application/vnd' },
-  { label: 'Texto y Markdown', value: 'text/' },
-];
+function apiMessage(error: unknown, fallback: string): string {
+  const message = (error as { error?: { error?: { message?: string } } } | null)?.error?.error
+    ?.message;
+  return message || fallback;
+}
 
+/** Dashboard de documentos del workspace (`/workspaces/:id/documents`). */
 @Component({
   selector: 'app-document-catalog',
-  standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [
+    RouterLink,
+    ActivityPanelComponent,
+    AlertComponent,
+    CoilSceneComponent,
+    DialogComponent,
+    DocumentDetailComponent,
+    DocumentTableComponent,
+    EmptyStateComponent,
+    FolderTabsComponent,
+    IconComponent,
+    KpiCardComponent,
+    RoleLadderComponent,
+    SegmentedBarComponent,
+    SparklineComponent,
+  ],
+  providers: [CatalogStore],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './catalog.html',
   styleUrl: './catalog.css',
 })
-export class DocumentCatalogComponent implements OnInit {
+export class DocumentCatalogComponent {
+  protected readonly store = inject(CatalogStore);
+  protected readonly workspaceService = inject(WorkspaceService);
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly documentService = inject(DocumentService);
-  readonly workspaceService = inject(WorkspaceService);
-  private readonly destroyRef = inject(DestroyRef);
+  private readonly documentsApi = inject(DocumentService);
+  private readonly uploadQueue = inject(UploadQueueService);
+  private readonly visibility = inject(PageVisibilityService);
 
-  private readonly destroy$ = new Subject<void>();
+  protected readonly typeOptions = DOCUMENT_TYPE_OPTIONS;
+  protected readonly pageSizes = PAGE_SIZE_OPTIONS;
+  protected readonly shortId = shortId;
 
-  readonly workspaceId = signal<string>('');
-  readonly documents = signal<DocumentItem[]>([]);
-  readonly isLoading = signal<boolean>(true);
-  readonly isRefreshing = signal<boolean>(false);
-  readonly errorMessage = signal<string | null>(null);
+  protected readonly workspaceId = signal('');
+  protected readonly workspace = computed(() => {
+    const id = this.workspaceId();
+    const active = this.workspaceService.activeWorkspace();
+    return active?.id === id
+      ? active
+      : (this.workspaceService.workspaces().find((ws) => ws.id === id) ?? null);
+  });
+  protected readonly role = computed(() => this.workspace()?.role ?? null);
+  protected readonly canUpload = computed(() => hasRoleAtLeast(this.role(), 'MEMBER'));
+  protected readonly canDelete = computed(() => hasRoleAtLeast(this.role(), 'EDITOR'));
+  protected readonly canRetry = computed(() => hasRoleAtLeast(this.role(), 'ADMIN'));
 
-  // Filtros interactivos (CDM-42)
-  readonly activeFilter = signal<StatusFilterOption>('ALL');
-  readonly searchTerm = signal<string>('');
-  readonly selectedMime = signal<string>('ALL');
-  readonly mimeOptions = MIME_OPTIONS;
-
-  // Paginación server-side (CDM-42)
-  readonly currentPage = signal<number>(1);
-  readonly pageSize = signal<number>(50);
-  readonly totalDocuments = signal<number>(0);
-
-  readonly totalPages = computed(() =>
-    Math.max(1, Math.ceil(this.totalDocuments() / this.pageSize()))
+  protected readonly uploads = computed(() =>
+    this.uploadQueue
+      .items()
+      .filter(
+        (item) =>
+          item.workspaceId === this.workspaceId() &&
+          (item.phase === 'queued' ||
+            item.phase === 'requesting' ||
+            item.phase === 'uploading' ||
+            item.phase === 'completing'),
+      ),
   );
 
-  readonly hasNextPage = computed(() => this.currentPage() < this.totalPages());
-  readonly hasPrevPage = computed(() => this.currentPage() > 1);
-
-  readonly showingFrom = computed(() =>
-    this.totalDocuments() === 0
-      ? 0
-      : (this.currentPage() - 1) * this.pageSize() + 1
-  );
-
-  readonly showingTo = computed(() =>
-    Math.min(this.currentPage() * this.pageSize(), this.totalDocuments())
-  );
-
-  // Modal / Detalle de documento seleccionado
-  readonly selectedDocument = signal<DocumentItem | null>(null);
-  readonly isDetailOpen = signal<boolean>(false);
-
-  // Modal de confirmación de eliminación
-  readonly documentToDelete = signal<DocumentItem | null>(null);
-  readonly isDeleting = signal<boolean>(false);
-
-  // Acción de descarga en progreso
-  readonly downloadingDocId = signal<string | null>(null);
-  readonly actionErrorMessage = signal<string | null>(null);
-
-  readonly canDelete = computed(() => {
-    const role = this.workspaceService.activeWorkspace()?.role;
-    return role === 'OWNER' || role === 'ADMIN' || role === 'EDITOR';
+  protected readonly folders = computed<FolderTab[]>(() => {
+    const stats = this.store.stats();
+    return STATUS_FOLDERS.map((folder) => ({
+      id: folder.id,
+      label: folder.label,
+      count: stats
+        ? folder.id === 'ALL'
+          ? stats.total
+          : (stats.byStatus[folder.id as CountedStatus] ?? 0)
+        : null,
+    }));
   });
 
-  readonly canUpload = computed(() => {
-    const role = this.workspaceService.activeWorkspace()?.role;
-    return (
-      role === 'OWNER' ||
-      role === 'ADMIN' ||
-      role === 'EDITOR' ||
-      role === 'MEMBER'
-    );
+  protected readonly readyPercent = computed(() => {
+    const stats = this.store.stats();
+    return stats ? percent(stats.byStatus.READY, stats.total) : 0;
   });
 
-  readonly canRetry = computed(() => {
-    const role = this.workspaceService.activeWorkspace()?.role;
-    return role === 'OWNER' || role === 'ADMIN';
+  protected readonly pipeline = computed(() => {
+    const stats = this.store.stats();
+    const counts = stats?.byStatus;
+    const total = stats?.total ?? 0;
+    const inProgress = counts ? counts.UPLOADED + counts.PROCESSING : 0;
+    const segments: BarSegment[] = [
+      { value: counts?.READY ?? 0, tone: 'positive', label: 'Listos' },
+      { value: inProgress, tone: 'accent', label: 'En curso' },
+      { value: counts?.PENDING_UPLOAD ?? 0, tone: 'neutral', label: 'Pendientes' },
+      { value: counts?.FAILED ?? 0, tone: 'danger', label: 'Fallidos' },
+    ];
+    return {
+      segments,
+      ready: percent(counts?.READY ?? 0, total),
+      inProgress: percent(inProgress, total),
+      failed: percent(counts?.FAILED ?? 0, total),
+    };
   });
 
-  readonly retryingDocId = signal<string | null>(null);
-
-  readonly filteredDocuments = computed(() => {
-    const statusFilter = this.activeFilter();
-    const search = this.searchTerm().trim().toLowerCase();
-    const mime = this.selectedMime();
-    let result = this.documents();
-
-    // 1. Filtro por estado
-    if (statusFilter !== 'ALL') {
-      result = result.filter((doc) => doc.status === statusFilter);
-    }
-
-    // 2. Filtro por término en nombre
-    if (search) {
-      result = result.filter((doc) =>
-        doc.original_filename.toLowerCase().includes(search)
-      );
-    }
-
-    // 3. Filtro por MIME type
-    if (mime !== 'ALL') {
-      result = result.filter((doc) =>
-        doc.content_type.toLowerCase().startsWith(mime.toLowerCase())
-      );
-    }
-
-    return result;
+  protected readonly sparkLabel = computed(() => {
+    const series = this.store.stats()?.dailyUploads;
+    return series
+      ? `Documentos cargados por día en los últimos 7 días: ${series.join(', ')}`
+      : '';
   });
 
-  // Ordenamiento interactivo por columna (CDM-46)
-  readonly sortColumn = signal<SortColumn>('created_at');
-  readonly sortDirection = signal<SortDirection>('desc');
+  protected readonly selected = signal<DocumentItem | null>(null);
+  protected readonly toDelete = signal<DocumentItem | null>(null);
+  protected readonly busyId = signal<string | null>(null);
+  protected readonly deleting = signal(false);
+  protected readonly actionError = signal<string | null>(null);
 
-  toggleSort(column: SortColumn): void {
-    if (this.sortColumn() === column) {
-      this.sortDirection.update((dir) => (dir === 'asc' ? 'desc' : 'asc'));
-    } else {
-      this.sortColumn.set(column);
-      this.sortDirection.set('asc');
-    }
+  private completedUploads = 0;
+
+  constructor() {
+    this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
+      const id = params.get('id') ?? this.workspaceService.activeWorkspace()?.id ?? '';
+      this.workspaceId.set(id);
+      this.closeDetail();
+      this.toDelete.set(null);
+      if (id) {
+        this.store.init(id);
+        this.openFromQuery(id);
+      } else {
+        this.store.loading.set(false);
+        this.store.error.set('No se ha seleccionado ningún espacio de trabajo.');
+      }
+    });
+
+    interval(POLL_INTERVAL_MS)
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => {
+        if (this.visibility.visible() && this.store.inFlight() && !this.store.loading()) {
+          this.store.poll();
+        }
+      });
+
+    // Cuando termina una carga de este workspace, refresca tabla, actividad y métricas.
+    effect(() => {
+      const completed = this.uploadQueue
+        .items()
+        .filter((item) => item.workspaceId === this.workspaceId() && item.phase === 'completed')
+        .length;
+      untracked(() => {
+        if (completed > this.completedUploads) {
+          this.store.poll();
+        }
+        this.completedUploads = completed;
+      });
+    });
   }
 
-  readonly sortedDocuments = computed(() => {
-    const list = [...this.filteredDocuments()];
-    const col = this.sortColumn();
-    const dir = this.sortDirection();
+  protected onFolder(id: string): void {
+    this.store.setStatus(id as StatusFilter);
+  }
 
-    return list.sort((a, b) => {
-      let cmp = 0;
-      switch (col) {
-        case 'original_filename':
-          cmp = a.original_filename.localeCompare(b.original_filename);
-          break;
-        case 'content_type':
-          cmp = a.content_type.localeCompare(b.content_type);
-          break;
-        case 'size_bytes':
-          cmp = a.size_bytes - b.size_bytes;
-          break;
-        case 'created_at':
-          cmp =
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          break;
-        case 'status':
-          cmp = a.status.localeCompare(b.status);
-          break;
-      }
-      return dir === 'asc' ? cmp : -cmp;
-    });
-  });
+  protected onSearch(event: Event): void {
+    this.store.setSearch((event.target as HTMLInputElement).value);
+  }
 
-  readonly hasActiveFilters = computed(
-    () =>
-      this.activeFilter() !== 'ALL' ||
-      this.searchTerm().trim().length > 0 ||
-      this.selectedMime() !== 'ALL'
-  );
+  protected onType(event: Event): void {
+    const value = (event.target as HTMLSelectElement).value;
+    this.store.setContentType(value === '' ? null : value);
+  }
 
-  readonly hasProcessingDocuments = computed(() => {
-    return this.documents().some(
-      (doc) => doc.status === 'PROCESSING' || doc.status === 'UPLOADED'
-    );
-  });
+  protected onPageSize(event: Event): void {
+    this.store.setPageSize(Number((event.target as HTMLSelectElement).value));
+  }
 
-  ngOnInit(): void {
-    this.destroyRef.onDestroy(() => {
-      this.destroy$.next();
-      this.destroy$.complete();
-    });
+  protected onFilesDropped(files: File[]): void {
+    this.uploadQueue.enqueue(this.workspaceId(), files);
+  }
 
-    const routeId = this.route.snapshot.paramMap.get('id');
-    const targetWsId =
-      routeId || this.workspaceService.activeWorkspace()?.id || '';
+  protected openDetail(doc: DocumentItem): void {
+    this.selected.set(doc);
+  }
 
-    if (!targetWsId) {
-      this.errorMessage.set('No se ha seleccionado ningún espacio de trabajo.');
-      this.isLoading.set(false);
+  protected closeDetail(): void {
+    this.selected.set(null);
+  }
+
+  protected download(doc: DocumentItem): void {
+    if (doc.status !== 'READY') {
       return;
     }
-
-    this.workspaceId.set(targetWsId);
-    this.loadDocuments();
-
-    const targetDocId = this.route.snapshot.queryParamMap.get('docId');
-    if (targetDocId) {
-      this.documentService
-        .getDocument(targetWsId, targetDocId)
-        .pipe(takeUntil(this.destroy$))
-        .subscribe({
-          next: (doc) => this.openDetail(doc),
-          error: () => {
-            // Documento no encontrado o no accesible
-          },
-        });
-    }
-
-    // Auto-polling cada 5 segundos si hay documentos en procesamiento
-    const intervalId = setInterval(() => {
-      if (this.hasProcessingDocuments() && !this.isLoading()) {
-        this.refreshDocuments(true);
-      }
-    }, 5000);
-
-    this.destroyRef.onDestroy(() => {
-      clearInterval(intervalId);
+    this.busyId.set(doc.id);
+    this.actionError.set(null);
+    this.documentsApi.getDownloadUrl(this.workspaceId(), doc.id).subscribe({
+      next: (res) => {
+        this.busyId.set(null);
+        window.open(res.download_url, '_blank', 'noopener,noreferrer');
+      },
+      error: (err) => {
+        this.busyId.set(null);
+        this.actionError.set(
+          apiMessage(err, 'No se pudo generar la URL de descarga del documento.'),
+        );
+      },
     });
   }
 
-  loadDocuments(): void {
-    const wsId = this.workspaceId();
-    if (!wsId) return;
-
-    this.isLoading.set(true);
-    this.errorMessage.set(null);
-
-    const offset = (this.currentPage() - 1) * this.pageSize();
-    const filterOptions: DocumentFilterOptions = {
-      limit: this.pageSize(),
-      offset,
-      status: this.activeFilter() === 'ALL' ? undefined : this.activeFilter(),
-      search: this.searchTerm().trim() || undefined,
-      content_type:
-        this.selectedMime() === 'ALL' ? undefined : this.selectedMime(),
-    };
-
-    this.documentService
-      .listDocuments(wsId, filterOptions)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          this.documents.set(res.items);
-          this.totalDocuments.set(res.total);
-          this.isLoading.set(false);
-          this.isRefreshing.set(false);
-        },
-        error: (err) => {
-          this.errorMessage.set(
-            err?.error?.error?.message ||
-              'No se pudieron cargar los documentos del espacio.'
-          );
-          this.isLoading.set(false);
-          this.isRefreshing.set(false);
-        },
-      });
+  protected retry(doc: DocumentItem): void {
+    this.busyId.set(doc.id);
+    this.actionError.set(null);
+    this.documentsApi.retryDocument(this.workspaceId(), doc.id).subscribe({
+      next: (updated) => {
+        this.busyId.set(null);
+        this.store.upsert(updated);
+        if (this.selected()?.id === updated.id) {
+          this.selected.set(updated);
+        }
+      },
+      error: (err) => {
+        this.busyId.set(null);
+        this.actionError.set(
+          apiMessage(err, 'No se pudo reintentar el procesamiento del documento.'),
+        );
+      },
+    });
   }
 
-  refreshDocuments(silent = false): void {
-    const wsId = this.workspaceId();
-    if (!wsId) return;
-
-    if (!silent) {
-      this.isRefreshing.set(true);
-    }
-
-    const offset = (this.currentPage() - 1) * this.pageSize();
-    const filterOptions: DocumentFilterOptions = {
-      limit: this.pageSize(),
-      offset,
-      status: this.activeFilter() === 'ALL' ? undefined : this.activeFilter(),
-      search: this.searchTerm().trim() || undefined,
-      content_type:
-        this.selectedMime() === 'ALL' ? undefined : this.selectedMime(),
-    };
-
-    this.documentService
-      .listDocuments(wsId, filterOptions)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          this.documents.set(res.items);
-          this.totalDocuments.set(res.total);
-          this.isRefreshing.set(false);
-        },
-        error: () => {
-          this.isRefreshing.set(false);
-        },
-      });
-  }
-
-  setFilter(filter: StatusFilterOption): void {
-    this.activeFilter.set(filter);
-    this.currentPage.set(1);
-    this.loadDocuments();
-  }
-
-  onSearchChange(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.searchTerm.set(input.value || '');
-    this.currentPage.set(1);
-    this.loadDocuments();
-  }
-
-  clearSearch(): void {
-    this.searchTerm.set('');
-    this.currentPage.set(1);
-    this.loadDocuments();
-  }
-
-  setMimeFilter(mime: string): void {
-    this.selectedMime.set(mime);
-    this.currentPage.set(1);
-    this.loadDocuments();
-  }
-
-  resetAllFilters(): void {
-    this.activeFilter.set('ALL');
-    this.searchTerm.set('');
-    this.selectedMime.set('ALL');
-    this.currentPage.set(1);
-    this.loadDocuments();
-  }
-
-  nextPage(): void {
-    if (this.hasNextPage()) {
-      this.currentPage.update((p) => p + 1);
-      this.loadDocuments();
-    }
-  }
-
-  prevPage(): void {
-    if (this.hasPrevPage()) {
-      this.currentPage.update((p) => p - 1);
-      this.loadDocuments();
-    }
-  }
-
-  goToPage(page: number): void {
-    if (page >= 1 && page <= this.totalPages() && page !== this.currentPage()) {
-      this.currentPage.set(page);
-      this.loadDocuments();
-    }
-  }
-
-  setPageSize(size: number): void {
-    this.pageSize.set(size);
-    this.currentPage.set(1);
-    this.loadDocuments();
-  }
-
-  openDetail(doc: DocumentItem): void {
-    this.selectedDocument.set(doc);
-    this.isDetailOpen.set(true);
-  }
-
-  closeDetail(): void {
-    this.selectedDocument.set(null);
-    this.isDetailOpen.set(false);
-  }
-
-  downloadDocument(doc: DocumentItem): void {
-    if (doc.status !== 'READY') return;
-
-    this.downloadingDocId.set(doc.id);
-    this.documentService
-      .getDownloadUrl(this.workspaceId(), doc.id)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (res) => {
-          this.downloadingDocId.set(null);
-          // Redirigir a URL prefirmada temporal para descarga
-          window.open(res.download_url, '_blank');
-        },
-        error: (err) => {
-          this.downloadingDocId.set(null);
-          this.actionErrorMessage.set(
-            err?.error?.error?.message ||
-              'No se pudo generar la URL de descarga del documento.'
-          );
-        },
-      });
-  }
-
-  retryDocument(doc: DocumentItem): void {
-    if (doc.status !== 'FAILED') return;
-
-    this.retryingDocId.set(doc.id);
-    this.actionErrorMessage.set(null);
-    this.documentService
-      .retryDocument(this.workspaceId(), doc.id)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: (updatedDoc) => {
-          this.retryingDocId.set(null);
-          this.documents.update((docs) =>
-            docs.map((d) => (d.id === updatedDoc.id ? updatedDoc : d))
-          );
-          if (this.selectedDocument()?.id === doc.id) {
-            this.selectedDocument.set(updatedDoc);
-          }
-        },
-        error: (err) => {
-          this.retryingDocId.set(null);
-          this.actionErrorMessage.set(
-            err?.error?.error?.message ||
-              'No se pudo reintentar el procesamiento del documento.'
-          );
-        },
-      });
-  }
-
-  confirmDelete(doc: DocumentItem): void {
-    this.actionErrorMessage.set(null);
-    this.documentToDelete.set(doc);
-  }
-
-  confirmDeleteFromDetail(doc: DocumentItem): void {
+  protected askDelete(doc: DocumentItem): void {
+    this.actionError.set(null);
     this.closeDetail();
-    this.confirmDelete(doc);
+    this.toDelete.set(doc);
   }
 
-  cancelDelete(): void {
-    this.documentToDelete.set(null);
-  }
-
-  executeDelete(): void {
-    const doc = this.documentToDelete();
-    if (!doc) return;
-
-    this.isDeleting.set(true);
-    this.actionErrorMessage.set(null);
-    this.documentService
-      .deleteDocument(this.workspaceId(), doc.id)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe({
-        next: () => {
-          this.isDeleting.set(false);
-          this.documentToDelete.set(null);
-          if (this.selectedDocument()?.id === doc.id) {
-            this.closeDetail();
-          }
-          this.refreshDocuments(true);
-        },
-        error: (err) => {
-          this.isDeleting.set(false);
-          this.actionErrorMessage.set(
-            err?.error?.error?.message ||
-              'No se pudo eliminar el documento seleccionado.'
-          );
-        },
-      });
-  }
-
-  @HostListener('document:keydown.escape')
-  onEscape(): void {
-    if (this.documentToDelete()) {
-      this.cancelDelete();
-    } else if (this.isDetailOpen()) {
-      this.closeDetail();
+  protected cancelDelete(): void {
+    if (!this.deleting()) {
+      this.toDelete.set(null);
     }
   }
 
-  formatBytes(bytes: number): string {
-    if (bytes <= 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  protected confirmDelete(): void {
+    const doc = this.toDelete();
+    if (!doc) {
+      return;
+    }
+    this.deleting.set(true);
+    this.documentsApi.deleteDocument(this.workspaceId(), doc.id).subscribe({
+      next: () => {
+        this.deleting.set(false);
+        this.toDelete.set(null);
+        this.store.remove(doc.id);
+      },
+      error: (err) => {
+        this.deleting.set(false);
+        this.toDelete.set(null);
+        this.actionError.set(apiMessage(err, 'No se pudo eliminar el documento seleccionado.'));
+      },
+    });
   }
 
-  formatDate(dateStr: string): string {
-    try {
-      const date = new Date(dateStr);
-      return new Intl.DateTimeFormat('es-CO', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(date);
-    } catch {
-      return dateStr;
+  private openFromQuery(workspaceId: string): void {
+    const docId = this.route.snapshot.queryParamMap.get('docId');
+    if (!docId) {
+      return;
     }
-  }
-
-  getStatusLabel(status: StatusFilterOption): string {
-    switch (status) {
-      case 'ALL':
-        return 'Todos';
-      case 'READY':
-        return 'Listo';
-      case 'PROCESSING':
-        return 'Procesando';
-      case 'UPLOADED':
-        return 'Subido';
-      case 'PENDING_UPLOAD':
-        return 'Pendiente';
-      case 'FAILED':
-        return 'Fallido';
-      case 'DELETED':
-        return 'Eliminado';
-      default:
-        return status;
-    }
-  }
-
-  getStatusClass(status: DocumentStatus): string {
-    switch (status) {
-      case 'READY':
-        return 'doc-status-ready';
-      case 'PROCESSING':
-        return 'doc-status-processing';
-      case 'UPLOADED':
-        return 'doc-status-uploaded';
-      case 'PENDING_UPLOAD':
-        return 'doc-status-pending';
-      case 'FAILED':
-        return 'doc-status-failed';
-      case 'DELETED':
-        return 'doc-status-deleted';
-      default:
-        return '';
-    }
+    this.documentsApi.getDocument(workspaceId, docId).subscribe({
+      next: (doc) => this.openDetail(doc),
+      error: () => undefined,
+    });
   }
 }

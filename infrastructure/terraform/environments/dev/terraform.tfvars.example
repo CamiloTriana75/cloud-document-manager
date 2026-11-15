@@ -7,5 +7,8 @@
 # owner               = "Camilo Triana"
 # log_retention_days  = 14
 # max_file_size_mb    = 50
-# allowed_cors_origins = ["http://localhost:4200"]
+# allowed_cors_origins = ["http://localhost:4200", "https://cloud-document-manager.vercel.app"]
+#
+# database_url NO va en ningún archivo: pásala por entorno (ADR-0010).
+#   export TF_VAR_database_url='postgresql+psycopg://cdm_app:<password>@<host>-pooler.<region>.aws.neon.tech/cdm?sslmode=require&channel_binding=require'
 # lambda_memory_mb    = 256

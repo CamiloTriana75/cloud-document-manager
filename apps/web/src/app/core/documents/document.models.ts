@@ -94,6 +94,7 @@ export const ALLOWED_UPLOAD_EXTENSIONS = [
   '.jpeg',
   '.txt',
   '.md',
+  '.markdown',
   '.csv',
   '.json',
   '.docx',

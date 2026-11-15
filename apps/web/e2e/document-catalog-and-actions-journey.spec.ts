@@ -20,9 +20,9 @@ test.describe('Journey E2E: Catálogo de Documentos y Acciones de Ciclo de Vida 
     await expect(page.getByRole('table', { name: 'Lista de documentos del espacio' })).toBeVisible();
 
     // Verificación de documentos presentes en la tabla
-    await expect(page.getByText('reporte_anual_2026.pdf')).toBeVisible();
-    await expect(page.getByText('logo_corporativo.png')).toBeVisible();
-    await expect(page.getByText('archivo_corrupto.docx')).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Lista de documentos del espacio' }).getByText('reporte_anual_2026.pdf')).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Lista de documentos del espacio' }).getByText('logo_corporativo.png')).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Lista de documentos del espacio' }).getByText('archivo_corrupto.docx')).toBeVisible();
 
     // Verificación de badges de estado en el catálogo
     await expect(page.locator('.doc-status-ready').first()).toBeVisible();
@@ -43,7 +43,7 @@ test.describe('Journey E2E: Catálogo de Documentos y Acciones de Ciclo de Vida 
     await searchInput.fill('reporte');
 
     // Debe permanecer el documento coincidente
-    await expect(page.getByText('reporte_anual_2026.pdf')).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Lista de documentos del espacio' }).getByText('reporte_anual_2026.pdf')).toBeVisible();
 
     // Limpiar búsqueda
     const clearButton = page.getByRole('button', { name: 'Limpiar búsqueda' });
@@ -53,24 +53,27 @@ test.describe('Journey E2E: Catálogo de Documentos y Acciones de Ciclo de Vida 
       await searchInput.fill('');
     }
 
-    await expect(page.getByText('logo_corporativo.png')).toBeVisible();
+    await expect(page.getByRole('table', { name: 'Lista de documentos del espacio' }).getByText('logo_corporativo.png')).toBeVisible();
   });
 
-  test('debe filtrar documentos mediante las píldoras de estado', async ({ page }) => {
+  test('debe filtrar documentos mediante las carpetas de estado', async ({ page }) => {
     await setupAuthenticatedSession(page, MOCK_WORKSPACE);
     await setupMockApiRoutes(page, MOCK_WORKSPACE);
 
     await page.goto(`/workspaces/${MOCK_WORKSPACE.id}/documents`);
 
-    // Clic en la píldora "Listos"
-    const readyFilter = page.getByRole('button', { name: /Listos/i });
-    await readyFilter.click();
-    await expect(readyFilter).toHaveAttribute('aria-pressed', 'true');
+    // Clic en la carpeta "Listos"
+    const readyFolder = page.getByRole('tab', { name: /Listos/i });
+    await readyFolder.click();
+    await expect(readyFolder).toHaveAttribute('aria-selected', 'true');
+    const table = page.getByRole('table', { name: 'Lista de documentos del espacio' });
+    await expect(table.getByText('reporte_anual_2026.pdf')).toBeVisible();
+    await expect(table.getByText('logo_corporativo.png')).toHaveCount(0);
 
     // Clic en "Todos" para restablecer
-    const allFilter = page.getByRole('button', { name: /Todos/i });
-    await allFilter.click();
-    await expect(allFilter).toHaveAttribute('aria-pressed', 'true');
+    const allFolder = page.getByRole('tab', { name: /Todos/i });
+    await allFolder.click();
+    await expect(allFolder).toHaveAttribute('aria-selected', 'true');
   });
 
   test('debe abrir y cerrar el modal de detalle técnico accesible', async ({ page }) => {

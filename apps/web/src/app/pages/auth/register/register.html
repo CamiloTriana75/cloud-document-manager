@@ -1,115 +1,109 @@
-<main class="auth-container">
-  <div class="auth-card">
-    <div class="auth-header">
-      <h1 class="auth-title">Crear cuenta</h1>
-      <p class="auth-subtitle">Regístrate para gestionar documentos con tu equipo</p>
+<app-auth-layout>
+  <header class="auth-head">
+    <h1 class="auth-title">Crear cuenta</h1>
+    <p class="auth-sub">Regístrate para gestionar documentos con tu equipo.</p>
+  </header>
+
+  @if (errorMessage(); as message) {
+    <app-alert type="danger">{{ message }}</app-alert>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form" novalidate>
+    <div class="field">
+      <label for="name" class="field__label">Nombre completo</label>
+      <input
+        id="name"
+        type="text"
+        class="input"
+        formControlName="name"
+        autocomplete="name"
+        [attr.aria-invalid]="invalid('name')"
+        [attr.aria-describedby]="invalid('name') ? 'name-error' : null"
+      />
+      @if (invalid('name')) {
+        <p id="name-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          El nombre es obligatorio (mínimo 2 caracteres).
+        </p>
+      }
     </div>
 
-    @if (errorMessage()) {
-      <div class="alert alert-error" role="alert" aria-live="polite">
-        <span class="alert-icon" aria-hidden="true">⚠️</span>
-        <span>{{ errorMessage() }}</span>
-      </div>
-    }
+    <div class="field">
+      <label for="email" class="field__label">Correo electrónico</label>
+      <input
+        id="email"
+        type="email"
+        class="input"
+        formControlName="email"
+        placeholder="tu@organizacion.com"
+        autocomplete="email"
+        [attr.aria-invalid]="invalid('email')"
+        [attr.aria-describedby]="invalid('email') ? 'email-error' : null"
+      />
+      @if (invalid('email')) {
+        <p id="email-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          Ingresa un correo electrónico válido.
+        </p>
+      }
+    </div>
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-      <div class="form-group">
-        <label for="name" class="form-label">Nombre completo</label>
-        <input
-          id="name"
-          type="text"
-          class="form-input"
-          formControlName="name"
-          placeholder="Tu Nombre"
-          autocomplete="name"
-          [attr.aria-invalid]="form.get('name')?.invalid && form.get('name')?.touched"
-          aria-describedby="name-error"
-        />
-        @if (form.get('name')?.invalid && form.get('name')?.touched) {
-          <span id="name-error" class="form-error">
-            El nombre es obligatorio (mínimo 2 caracteres).
-          </span>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="email" class="form-label">Correo electrónico</label>
-        <input
-          id="email"
-          type="email"
-          class="form-input"
-          formControlName="email"
-          placeholder="tu@organizacion.com"
-          autocomplete="email"
-          [attr.aria-invalid]="form.get('email')?.invalid && form.get('email')?.touched"
-          aria-describedby="email-error"
-        />
-        @if (form.get('email')?.invalid && form.get('email')?.touched) {
-          <span id="email-error" class="form-error">
-            Ingresa un correo electrónico válido.
-          </span>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="password" class="form-label">Contraseña</label>
+    <div class="field">
+      <label for="password" class="field__label">Contraseña</label>
+      <div class="password">
         <input
           id="password"
-          type="password"
-          class="form-input"
+          class="input"
           formControlName="password"
-          placeholder="Mínimo 8 caracteres"
           autocomplete="new-password"
-          [attr.aria-invalid]="form.get('password')?.invalid && form.get('password')?.touched"
-          aria-describedby="password-help password-error"
+          aria-describedby="password-rules"
+          [type]="showPassword() ? 'text' : 'password'"
+          [attr.aria-invalid]="invalid('password')"
         />
-        <span id="password-help" class="form-help">
-          Debe tener 8+ caracteres, mayúsculas, minúsculas, números y símbolos.
-        </span>
-        @if (form.get('password')?.invalid && form.get('password')?.touched) {
-          <span id="password-error" class="form-error">
-            La contraseña no cumple con los requisitos de seguridad.
-          </span>
-        }
+        <button
+          type="button"
+          class="password__toggle"
+          aria-controls="password"
+          [attr.aria-pressed]="showPassword()"
+          (click)="togglePassword()"
+        >
+          {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
+        </button>
       </div>
-
-      <div class="form-group">
-        <label for="confirmPassword" class="form-label">Confirmar contraseña</label>
-        <input
-          id="confirmPassword"
-          type="password"
-          class="form-input"
-          formControlName="confirmPassword"
-          placeholder="Repite tu contraseña"
-          autocomplete="new-password"
-          [attr.aria-invalid]="form.hasError('passwordMismatch') && form.get('confirmPassword')?.touched"
-          aria-describedby="confirm-error"
-        />
-        @if (form.hasError('passwordMismatch') && form.get('confirmPassword')?.touched) {
-          <span id="confirm-error" class="form-error">
-            Las contraseñas no coinciden.
-          </span>
+      <ul id="password-rules" class="rules" role="list">
+        @for (rule of rules(); track rule.label) {
+          <li [class.is-met]="rule.met">
+            <app-icon [name]="rule.met ? 'check' : 'x'" [size]="14" />
+            {{ rule.label }}
+            <span class="sr-only">{{ rule.met ? '(cumplido)' : '(pendiente)' }}</span>
+          </li>
         }
-      </div>
-
-      <button
-        type="submit"
-        class="btn btn-primary btn-block"
-        [disabled]="isSubmitting()"
-      >
-        @if (isSubmitting()) {
-          <span>Creando cuenta...</span>
-        } @else {
-          <span>Crear cuenta</span>
-        }
-      </button>
-    </form>
-
-    <div class="auth-footer">
-      <p>
-        ¿Ya tienes cuenta?
-        <a routerLink="/auth/login" class="link">Iniciar sesión</a>
-      </p>
+      </ul>
     </div>
-  </div>
-</main>
+
+    <div class="field">
+      <label for="confirmPassword" class="field__label">Confirmar contraseña</label>
+      <input
+        id="confirmPassword"
+        class="input"
+        formControlName="confirmPassword"
+        autocomplete="new-password"
+        [type]="showPassword() ? 'text' : 'password'"
+        [attr.aria-invalid]="mismatch()"
+        [attr.aria-describedby]="mismatch() ? 'confirm-error' : null"
+      />
+      @if (mismatch()) {
+        <p id="confirm-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          Las contraseñas no coinciden.
+        </p>
+      }
+    </div>
+
+    <button type="submit" class="btn btn--primary btn--block auth-submit" [disabled]="isSubmitting()">
+      {{ isSubmitting() ? 'Creando cuenta…' : 'Crear cuenta' }}
+    </button>
+  </form>
+
+  <p class="auth-alt">¿Ya tienes cuenta? <a routerLink="/auth/login">Iniciar sesión</a></p>
+</app-auth-layout>

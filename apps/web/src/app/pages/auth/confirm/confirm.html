@@ -1,82 +1,71 @@
-<main class="auth-container">
-  <div class="auth-card">
-    <div class="auth-header">
-      <h1 class="auth-title">Confirmar cuenta</h1>
-      <p class="auth-subtitle">Ingresa el código de 6 dígitos que enviamos a tu correo</p>
+<app-auth-layout>
+  <header class="auth-head">
+    <h1 class="auth-title">Confirmar cuenta</h1>
+    <p class="auth-sub">Ingresa el código de 6 dígitos que enviamos a tu correo.</p>
+  </header>
+
+  @if (errorMessage(); as message) {
+    <app-alert type="danger">{{ message }}</app-alert>
+  }
+  @if (successMessage(); as message) {
+    <app-alert type="success">{{ message }}</app-alert>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form" novalidate>
+    <div class="field">
+      <label for="email" class="field__label">Correo electrónico</label>
+      <input
+        id="email"
+        type="email"
+        class="input"
+        formControlName="email"
+        autocomplete="email"
+        [attr.aria-invalid]="invalid('email')"
+        [attr.aria-describedby]="invalid('email') ? 'email-error' : null"
+      />
+      @if (invalid('email')) {
+        <p id="email-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          Ingresa un correo electrónico válido.
+        </p>
+      }
     </div>
 
-    @if (errorMessage()) {
-      <div class="alert alert-error" role="alert" aria-live="polite">
-        <span class="alert-icon" aria-hidden="true">⚠️</span>
-        <span>{{ errorMessage() }}</span>
-      </div>
-    }
-
-    @if (successMessage()) {
-      <div class="alert alert-success" role="status" aria-live="polite">
-        <span class="alert-icon" aria-hidden="true">✅</span>
-        <span>{{ successMessage() }}</span>
-      </div>
-    }
-
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-      <div class="form-group">
-        <label for="email" class="form-label">Correo electrónico</label>
-        <input
-          id="email"
-          type="email"
-          class="form-input"
-          formControlName="email"
-          placeholder="tu@organizacion.com"
-          autocomplete="email"
-          [attr.aria-invalid]="form.get('email')?.invalid && form.get('email')?.touched"
-          aria-describedby="email-error"
-        />
-        @if (form.get('email')?.invalid && form.get('email')?.touched) {
-          <span id="email-error" class="form-error">
-            Ingresa un correo electrónico válido.
-          </span>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="code" class="form-label">Código de verificación</label>
-        <input
-          id="code"
-          type="text"
-          class="form-input code-input"
-          formControlName="code"
-          placeholder="123456"
-          maxlength="6"
-          autocomplete="one-time-code"
-          inputmode="numeric"
-          [attr.aria-invalid]="form.get('code')?.invalid && form.get('code')?.touched"
-          aria-describedby="code-error"
-        />
-        @if (form.get('code')?.invalid && form.get('code')?.touched) {
-          <span id="code-error" class="form-error">
-            El código debe tener exactamente 6 dígitos numéricos.
-          </span>
-        }
-      </div>
-
-      <button
-        type="submit"
-        class="btn btn-primary btn-block"
-        [disabled]="isSubmitting() || successMessage() !== null"
-      >
-        @if (isSubmitting()) {
-          <span>Verificando...</span>
-        } @else {
-          <span>Confirmar código</span>
-        }
-      </button>
-    </form>
-
-    <div class="auth-footer">
-      <p>
-        <a routerLink="/auth/login" class="link">Volver al inicio de sesión</a>
-      </p>
+    <div class="field">
+      <label for="code" class="field__label">Código de verificación</label>
+      <input
+        id="code"
+        type="text"
+        class="input mono"
+        formControlName="code"
+        maxlength="6"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        [attr.aria-invalid]="invalid('code')"
+        [attr.aria-describedby]="invalid('code') ? 'code-error' : null"
+      />
+      @if (invalid('code')) {
+        <p id="code-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          El código debe tener exactamente 6 dígitos numéricos.
+        </p>
+      }
     </div>
-  </div>
-</main>
+
+    <button
+      type="submit"
+      class="btn btn--primary btn--block auth-submit"
+      [disabled]="isSubmitting() || successMessage() !== null"
+    >
+      {{ isSubmitting() ? 'Verificando…' : 'Confirmar código' }}
+    </button>
+  </form>
+
+  <p class="auth-alt">
+    ¿No te llegó el código?
+    <button type="button" class="btn btn--ghost btn--sm" (click)="resendCode()" [disabled]="isResending()">
+      {{ isResending() ? 'Enviando…' : 'Reenviar código' }}
+    </button>
+  </p>
+  <p class="auth-alt"><a routerLink="/auth/login">Volver al inicio de sesión</a></p>
+</app-auth-layout>

@@ -30,6 +30,7 @@ def get_token_verifier(
         user_pool_id=settings.cognito_user_pool_id,
         client_id=settings.cognito_client_id,
         aws_region=settings.cognito_region,
+        allow_mock_tokens=settings.auth_mock_enabled,
     )
 
 

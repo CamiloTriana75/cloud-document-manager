@@ -1,0 +1,11 @@
+# Vercel solo construye el frontend (rootDirectory = apps/web, ver ADR-0011).
+# Se sube únicamente apps/web, sin dependencias ni artefactos locales.
+/*
+!/apps
+/apps/*
+!/apps/web
+/apps/web/node_modules
+/apps/web/dist
+/apps/web/.angular
+/apps/web/test-results
+/apps/web/playwright-report

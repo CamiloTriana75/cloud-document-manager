@@ -39,10 +39,14 @@ test.describe('Journey E2E: Autenticación y Sesión de Usuario (CDM-50)', () =>
     // Redirige al inicio autenticado
     await expect(page).toHaveURL('/');
     await expect(page.getByRole('banner')).toBeVisible();
-    await expect(page.getByText('demo.user', { exact: true })).toBeVisible();
+
+    // La identidad y el cierre de sesión viven en el menú de usuario
+    await page.getByRole('button', { name: 'Menú de usuario' }).click();
+    const userMenu = page.getByRole('menu', { name: 'Menú de usuario' });
+    await expect(userMenu.getByText('demo.user', { exact: true })).toBeVisible();
 
     // Cerrar sesión
-    await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+    await userMenu.getByRole('menuitem', { name: 'Cerrar sesión' }).click();
 
     // Redirige de vuelta a login
     await expect(page).toHaveURL(/\/auth\/login/);

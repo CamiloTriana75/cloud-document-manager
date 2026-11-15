@@ -1,126 +1,124 @@
-<div class="home-container">
-  @if (authService.isAuthenticated()) {
-    <section class="card welcome-card" aria-labelledby="welcome-title">
-      <div class="welcome-header">
-        <div>
-          <h1 id="welcome-title" class="welcome-title">
-            Panel de Inicio
-          </h1>
-          <p class="welcome-subtitle">
-            Conectado como <strong>{{ authService.currentUser()?.email }}</strong>
-          </p>
-        </div>
-
-        @if (workspaceService.activeWorkspace(); as ws) {
-          <div class="active-ws-pill">
-            <span class="ws-label">Espacio activo:</span>
-            <span class="ws-title">{{ ws.name }}</span>
-            <span class="role-badge role-{{ ws.role | lowercase }}">{{ ws.role }}</span>
-          </div>
-        }
+@if (authService.isAuthenticated()) {
+  <section class="launch" aria-labelledby="home-title">
+    <app-coil-scene class="launch__scene" />
+    <div class="launch__inner">
+      <div class="launch__head">
+        <h1 id="home-title" class="display-title">Hola, {{ firstName() }}</h1>
+        <p class="launch__lede">Elige un espacio de trabajo para ver y cargar sus documentos.</p>
       </div>
 
-      @if (workspaceService.activeWorkspace(); as ws) {
-        <div class="quick-nav-grid" role="navigation" aria-label="Acciones rápidas del espacio">
-          <a [routerLink]="['/workspaces', ws.id, 'documents']" class="quick-nav-card">
-            <div class="quick-card-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-              </svg>
-            </div>
-            <div class="quick-card-body">
-              <span class="quick-card-title">Catálogo Documental</span>
-              <span class="quick-card-desc">Explora, busca y descarga los documentos de tu espacio.</span>
-            </div>
-          </a>
-
-          <a [routerLink]="['/workspaces', ws.id, 'upload']" class="quick-nav-card">
-            <div class="quick-card-icon icon-upload">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="17 8 12 3 7 8"/>
-                <line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-            </div>
-            <div class="quick-card-body">
-              <span class="quick-card-title">Cargar Documentos</span>
-              <span class="quick-card-desc">Sube archivos a S3 con verificación de integridad.</span>
-            </div>
-          </a>
-
-          <a [routerLink]="['/workspaces', ws.id, 'members']" class="quick-nav-card">
-            <div class="quick-card-icon icon-members">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div class="quick-card-body">
-              <span class="quick-card-title">Miembros y Roles</span>
-              <span class="quick-card-desc">Consulta los colaboradores o invita nuevos integrantes.</span>
-            </div>
+      @if (workspaceService.isLoading() && workspaceService.workspaces().length === 0) {
+        <div class="workspace-grid" aria-busy="true" aria-label="Cargando espacios de trabajo">
+          @for (slot of [1, 2, 3]; track slot) {
+            <span class="skeleton workspace-skeleton"></span>
+          }
+        </div>
+      } @else if (workspaceService.workspaces().length === 0) {
+        <div class="first-workspace surface-card">
+          <span class="first-workspace__icon"><app-icon name="building" [size]="24" /></span>
+          <div>
+            <h2 class="section-title">Aún no perteneces a ningún espacio</h2>
+            <p class="text-secondary">
+              Crea uno para tu equipo o pide a un administrador que te invite.
+            </p>
+          </div>
+          <a routerLink="/workspaces/new" class="btn btn--primary">
+            <app-icon name="plus" [size]="16" />
+            Crear espacio de trabajo
           </a>
         </div>
       } @else {
-        <div class="no-workspace-cta">
-          <p>No tienes ningún espacio de trabajo seleccionado o creado aún.</p>
-          <a routerLink="/workspaces/new" class="btn-create-ws">
-            + Crear nuevo espacio de trabajo
-          </a>
-        </div>
+        <ul class="workspace-grid" role="list" aria-label="Tus espacios de trabajo">
+          @for (ws of workspaceService.workspaces(); track ws.id) {
+            <li>
+              <button
+                type="button"
+                class="workspace-card"
+                [class.is-active]="ws.id === workspaceService.activeWorkspace()?.id"
+                (click)="open(ws)"
+              >
+                <span class="workspace-card__top">
+                  <span class="workspace-card__folder" aria-hidden="true"></span>
+                  <app-icon name="arrow-up-right" [size]="18" />
+                </span>
+                <span class="workspace-card__name">{{ ws.name }}</span>
+                <span class="workspace-card__slug">{{ ws.slug }} · desde {{ since(ws) }}</span>
+                <app-role-ladder [role]="ws.role" />
+              </button>
+            </li>
+          }
+          <li>
+            <a routerLink="/workspaces/new" class="workspace-card workspace-card--new">
+              <app-icon name="plus" [size]="22" />
+              <span>Nuevo espacio de trabajo</span>
+            </a>
+          </li>
+        </ul>
       }
-    </section>
-  }
-
-  <section class="card" aria-labelledby="api-status-title">
-    <h2 id="api-status-title" class="status-heading">Estado de la API</h2>
-
-    @if (isLoading()) {
-      <div class="skeleton" role="status" aria-label="Consultando estado de la API"></div>
-    } @else if (isOk()) {
-      <div class="status status-ok" role="status">
-        <svg
-          class="dot"
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          aria-hidden="true"
-        >
-          <circle cx="6" cy="6" r="6" fill="currentColor" />
-        </svg>
-        <div>
-          <p class="status-title">Operativa</p>
-          <p class="status-detail">
-            {{ status()!.service }} · v{{ status()!.version }}
-          </p>
-        </div>
-      </div>
-    } @else {
-      <div class="status status-error">
-        <svg
-          class="dot"
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          aria-hidden="true"
-        >
-          <circle cx="6" cy="6" r="6" fill="currentColor" />
-        </svg>
-        <div>
-          <p class="status-title">No disponible</p>
-          <p class="status-detail">
-            No se pudo contactar la API. Verifica que esté en ejecución.
-          </p>
-          <button type="button" class="btn-retry" (click)="refresh()">
-            Reintentar
-          </button>
-        </div>
-      </div>
-    }
+    </div>
   </section>
-</div>
+} @else {
+  <section class="landing" aria-labelledby="landing-title">
+    <app-coil-scene class="landing__scene" />
+    <div class="landing__inner">
+      <h1 id="landing-title" class="landing__title">Tus documentos, aislados por equipo y bajo control.</h1>
+      <p class="landing__lede">
+        CDM guarda cada archivo en almacenamiento privado, lo procesa en segundo plano y solo lo
+        muestra a quien pertenece a su espacio de trabajo.
+      </p>
+      <div class="landing__actions">
+        <a routerLink="/auth/register" class="btn btn--primary">Crear cuenta</a>
+        <a routerLink="/auth/login" class="btn btn--secondary">Iniciar sesión</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="pipeline-strip" aria-labelledby="pipeline-title">
+    <h2 id="pipeline-title" class="section-title">Así viaja un documento</h2>
+    <ol class="journey" role="list">
+      <li class="journey__step">
+        <app-status-badge status="PENDING_UPLOAD" />
+        <p><strong>Sesión de carga.</strong> El servidor autoriza tu rol y emite una URL prefirmada para un único objeto.</p>
+      </li>
+      <li class="journey__step">
+        <app-status-badge status="UPLOADED" />
+        <p><strong>Directo a S3.</strong> El navegador sube el archivo sin pasar por la API; el servidor verifica tamaño y existencia.</p>
+      </li>
+      <li class="journey__step">
+        <app-status-badge status="PROCESSING" />
+        <p><strong>En segundo plano.</strong> Un evento S3 → SQS activa el worker, que procesa de forma idempotente.</p>
+      </li>
+      <li class="journey__step">
+        <app-status-badge status="READY" />
+        <p><strong>Listo en el catálogo.</strong> Búscalo, revisa sus metadatos y descárgalo con un enlace temporal.</p>
+      </li>
+    </ol>
+  </section>
+}
+
+<footer class="home-footer">
+  @switch (health().kind) {
+    @case ('loading') {
+      <span class="api-status" role="status">
+        <span class="skeleton api-status__skeleton"></span>
+        <span class="sr-only">Consultando estado de la API</span>
+      </span>
+    }
+    @case ('ok') {
+      <span class="api-status status-ok" role="status">
+        <span class="api-status__dot" aria-hidden="true"></span>
+        API Operativa · {{ status()?.service }} v{{ status()?.version }}
+      </span>
+    }
+    @default {
+      <span class="api-status status-error" role="status">
+        <span class="api-status__dot" aria-hidden="true"></span>
+        API no disponible
+        <button type="button" class="btn btn--ghost btn--sm btn-retry" (click)="refresh()">
+          <app-icon name="refresh" [size]="14" />
+          Reintentar
+        </button>
+      </span>
+    }
+  }
+</footer>

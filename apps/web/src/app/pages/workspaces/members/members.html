@@ -1,234 +1,167 @@
-<section class="members-page" aria-labelledby="members-page-title">
-  <div class="page-container">
-    <header class="page-header">
-      <nav class="breadcrumb" aria-label="Ruta de navegación">
-        <a routerLink="/" class="breadcrumb-link">Inicio</a>
-        <span class="breadcrumb-separator" aria-hidden="true">/</span>
-        <span class="breadcrumb-current">Miembros y roles</span>
+<div class="page">
+  <header class="page-hero">
+    <div class="page-hero__lead">
+      <nav aria-label="Ruta de navegación">
+        <ol class="breadcrumbs">
+          <li><a routerLink="/">Inicio</a></li>
+          <li>
+            <a [routerLink]="['/workspaces', workspaceId(), 'documents']">
+              {{ workspaceService.activeWorkspace()?.name ?? 'Espacio de trabajo' }}
+            </a>
+          </li>
+          <li aria-current="page">Miembros</li>
+        </ol>
       </nav>
-
-      <div class="header-content">
-        <div>
-          <h1 id="members-page-title" class="title">
-            Miembros de {{ workspaceService.activeWorkspace()?.name || 'Espacio de trabajo' }}
-          </h1>
-          <p class="subtitle">
-            Administra los integrantes de este espacio y sus roles documentales (ADR-0001).
-          </p>
-        </div>
-        @if (workspaceService.activeWorkspace()?.role; as role) {
-          <div class="user-role-badge">
-            <span class="role-caption">Tu rol:</span>
-            <span class="role-badge role-{{ role | lowercase }}">{{ role }}</span>
-          </div>
-        }
-      </div>
-    </header>
-
-    @if (workspaceService.canManageMembers()) {
-      <div class="card invite-card">
-        <h2 class="card-title">Invitar a un nuevo miembro</h2>
-        <p class="card-subtitle">
-          Agrega colaboradores a este espacio de trabajo con permisos controlados.
-        </p>
-
-        @if (inviteSuccess()) {
-          <div class="alert alert-success" role="status" aria-live="polite">
-            <svg
-              class="alert-icon"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-              <polyline points="22 4 12 14.01 9 11.01" />
-            </svg>
-            <span>{{ inviteSuccess() }}</span>
-          </div>
-        }
-
-        @if (inviteError()) {
-          <div class="alert alert-error" role="alert" aria-live="polite">
-            <svg
-              class="alert-icon"
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <span>{{ inviteError() }}</span>
-          </div>
-        }
-
-        <form [formGroup]="form" (ngSubmit)="onInvite()" class="invite-form" novalidate>
-          <div class="form-row">
-            <div class="form-group flex-1">
-              <label for="member-email" class="form-label">
-                Correo electrónico <span class="required" aria-hidden="true">*</span>
-              </label>
-              <input
-                id="member-email"
-                type="email"
-                formControlName="email"
-                class="form-control"
-                [class.is-invalid]="form.controls.email.invalid && form.controls.email.touched"
-                placeholder="colaborador@ejemplo.com"
-                autocomplete="email"
-                [attr.aria-invalid]="form.controls.email.invalid && form.controls.email.touched"
-              />
-              @if (form.controls.email.invalid && form.controls.email.touched) {
-                <div class="field-error" role="alert">
-                  <span>Introduce un correo electrónico válido.</span>
-                </div>
-              }
-            </div>
-
-            <div class="form-group role-group">
-              <label for="member-role" class="form-label">
-                Rol en el espacio <span class="required" aria-hidden="true">*</span>
-              </label>
-              <select
-                id="member-role"
-                formControlName="role"
-                class="form-control select-control"
-              >
-                @for (role of availableRoles(); track role) {
-                  <option [value]="role">{{ role }}</option>
-                }
-              </select>
-            </div>
-
-            <div class="form-group submit-group">
-              <span class="submit-spacer" aria-hidden="true"></span>
-              <button
-                type="submit"
-                class="btn btn-primary btn-invite"
-                [disabled]="isSubmitting() || form.invalid"
-              >
-                @if (isSubmitting()) {
-                  <span class="spinner" aria-hidden="true"></span>
-                  <span>Agregando...</span>
-                } @else {
-                  <span>Agregar miembro</span>
-                }
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
+      <h1 class="display-title members-title">
+        Miembros de {{ workspaceService.activeWorkspace()?.name ?? 'Espacio de trabajo' }}
+      </h1>
+      <p class="text-secondary">Quién tiene acceso a este espacio y con qué rol (ADR-0001).</p>
+    </div>
+    @if (workspaceService.activeWorkspace()?.role; as role) {
+      <app-role-ladder [role]="role" />
     }
+  </header>
 
-    <!-- Listado de miembros -->
-    <div class="card table-card">
-      <div class="card-header-row">
-        <h2 class="card-title">Miembros actuales ({{ workspaceService.members().length }})</h2>
+  <dl class="summary">
+    <div class="summary__item">
+      <dt>Integrantes</dt>
+      <dd class="tabular">{{ summary().total }}</dd>
+    </div>
+    <div class="summary__item">
+      <dt>Administran</dt>
+      <dd class="tabular">{{ summary().admins }}</dd>
+    </div>
+    <div class="summary__item">
+      <dt>Activos</dt>
+      <dd class="tabular">{{ summary().active }}</dd>
+    </div>
+  </dl>
+
+  <div class="layout" [class.layout--single]="!workspaceService.canManageMembers()">
+    <section class="surface-card members" aria-labelledby="members-title">
+      <header class="card-header">
+        <h2 id="members-title" class="section-title">Integrantes actuales</h2>
         <button
           type="button"
-          class="btn-refresh"
-          (click)="loadMembers()"
+          class="btn btn--icon btn--sm"
           aria-label="Actualizar listado de miembros"
+          (click)="loadMembers()"
         >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-            <path d="M3 21v-5h5" />
-          </svg>
-          <span>Actualizar</span>
+          <app-icon name="refresh" [size]="16" />
         </button>
-      </div>
+      </header>
 
       @if (workspaceService.isLoading() && workspaceService.members().length === 0) {
-        <div class="loading-skeleton" aria-label="Cargando miembros..." aria-busy="true">
-          <div class="skeleton-row"></div>
-          <div class="skeleton-row"></div>
-          <div class="skeleton-row"></div>
+        <div class="skeleton-list" aria-busy="true" aria-label="Cargando miembros">
+          @for (row of [1, 2, 3]; track row) {
+            <span class="skeleton skeleton-row"></span>
+          }
         </div>
-      } @else if (workspaceService.error()) {
-        <div class="alert alert-error" role="alert">
-          <span>{{ workspaceService.error() }}</span>
-          <button type="button" class="btn btn-secondary btn-sm" (click)="loadMembers()">
-            Reintentar
-          </button>
+      } @else if (workspaceService.error(); as error) {
+        <div class="state">
+          <app-alert type="danger">{{ error }}</app-alert>
+          <button type="button" class="btn btn--secondary" (click)="loadMembers()">Reintentar</button>
         </div>
       } @else if (workspaceService.members().length === 0) {
-        <div class="empty-state">
-          <p>No se encontraron miembros en este espacio de trabajo.</p>
-        </div>
+        <app-empty-state
+          icon="users"
+          title="Sin integrantes visibles"
+          description="Cuando se agreguen miembros aparecerán aquí."
+        />
       } @else {
-        <div class="table-responsive">
-          <table class="members-table">
+        <div class="table-scroll">
+          <table class="data-table">
             <caption class="sr-only">
-              Listado de integrantes del espacio de trabajo con sus respectivos roles y estados
+              Integrantes del espacio de trabajo con su rol, estado y fecha de alta
             </caption>
             <thead>
               <tr>
-                <th scope="col">Usuario</th>
+                <th scope="col">Persona</th>
                 <th scope="col">Rol</th>
                 <th scope="col">Estado</th>
-                <th scope="col">Fecha de registro</th>
+                <th scope="col">Desde</th>
               </tr>
             </thead>
             <tbody>
               @for (member of workspaceService.members(); track member.membership_id) {
                 <tr>
                   <td>
-                    <div class="user-cell">
-                      <div class="avatar-placeholder" aria-hidden="true">
-                        {{ member.email.charAt(0).toUpperCase() }}
-                      </div>
-                      <div class="user-names">
-                        <span class="user-email">{{ member.email }}</span>
+                    <span class="person">
+                      <app-avatar [name]="member.display_name || member.email" [size]="34" />
+                      <span class="person__text">
+                        <span class="person__name">{{ member.display_name || member.email }}</span>
                         @if (member.display_name) {
-                          <span class="user-display-name">{{ member.display_name }}</span>
+                          <span class="person__email">{{ member.email }}</span>
                         }
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span class="role-badge role-{{ member.role | lowercase }}">
-                      {{ member.role }}
+                      </span>
                     </span>
                   </td>
+                  <td><app-role-badge [role]="member.role" /></td>
                   <td>
-                    <span class="status-pill status-{{ member.status | lowercase }}">
-                      {{ member.status === 'ACTIVE' ? 'Activo' : member.status }}
+                    <span class="member-status" [attr.data-status]="member.status">
+                      <span class="member-status__dot" aria-hidden="true"></span>
+                      {{ statusLabel(member) }}
                     </span>
                   </td>
-                  <td class="date-cell">
-                    {{ member.created_at | date: 'mediumDate' }}
-                  </td>
+                  <td class="text-secondary">{{ joined(member) }}</td>
                 </tr>
               }
             </tbody>
           </table>
         </div>
       }
-    </div>
+    </section>
+
+    @if (workspaceService.canManageMembers()) {
+      <section class="surface-card invite" aria-labelledby="invite-title">
+        <h2 id="invite-title" class="section-title">Invitar a un nuevo miembro</h2>
+        <p class="text-secondary invite__lede">
+          La persona debe tener una cuenta en CDM con este correo.
+        </p>
+
+        @if (inviteSuccess(); as message) {
+          <app-alert type="success">{{ message }}</app-alert>
+        }
+        @if (inviteError(); as message) {
+          <app-alert type="danger">{{ message }}</app-alert>
+        }
+
+        <form [formGroup]="form" (ngSubmit)="onInvite()" class="invite__form" novalidate>
+          <div class="field">
+            <label for="member-email" class="field__label">Correo electrónico</label>
+            <input
+              id="member-email"
+              type="email"
+              formControlName="email"
+              class="input"
+              placeholder="colaborador@empresa.com"
+              autocomplete="email"
+              [attr.aria-invalid]="emailInvalid()"
+              [attr.aria-describedby]="emailInvalid() ? 'member-email-error' : null"
+            />
+            @if (emailInvalid()) {
+              <p id="member-email-error" class="field__error">
+                <app-icon name="alert-circle" [size]="15" />
+                Introduce un correo electrónico válido.
+              </p>
+            }
+          </div>
+
+          <div class="field">
+            <label for="member-role" class="field__label">Rol en el espacio</label>
+            <select id="member-role" formControlName="role" class="select">
+              @for (role of availableRoles; track role) {
+                <option [value]="role">{{ role }}</option>
+              }
+            </select>
+          </div>
+
+          <button type="submit" class="btn btn--primary btn--block" [disabled]="isSubmitting() || form.invalid">
+            <app-icon name="user-plus" [size]="16" />
+            {{ isSubmitting() ? 'Agregando…' : 'Agregar miembro' }}
+          </button>
+        </form>
+      </section>
+    }
   </div>
-</section>
+</div>

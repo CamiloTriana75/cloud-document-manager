@@ -51,9 +51,12 @@ data "aws_iam_policy_document" "lambda_s3_least_privilege" {
   statement {
     sid    = "AllowS3TenantScopedObjectAccess"
     effect = "Allow"
+    # PutObject: las URLs prefirmadas de subida (CDM-29) se firman con este rol y S3
+    # evalúa los permisos del firmante; sin él la carga directa devuelve 403 (CDM-132).
+    # HeadObject se autoriza con s3:GetObject.
     actions = [
+      "s3:PutObject",
       "s3:GetObject",
-      "s3:HeadObject",
       "s3:DeleteObject",
     ]
     resources = [

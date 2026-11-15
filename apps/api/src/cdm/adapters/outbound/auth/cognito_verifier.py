@@ -25,10 +25,13 @@ class CognitoJwtVerifier(TokenVerifierPort):
         client_id: str = "",
         aws_region: str = "us-east-1",
         jwks_client: PyJWKClient | None = None,
+        allow_mock_tokens: bool = False,
     ) -> None:
         self.user_pool_id = user_pool_id
         self.client_id = client_id
         self.aws_region = aws_region
+        # Solo desarrollo local sin User Pool: acepta tokens sin firma (CDM-130).
+        self.allow_mock_tokens = allow_mock_tokens
         self.issuer = f"https://cognito-idp.{aws_region}.amazonaws.com/{user_pool_id}"
 
         self._jwks_client: PyJWKClient | None
@@ -53,8 +56,11 @@ class CognitoJwtVerifier(TokenVerifierPort):
 
         clean_token = token.strip()
 
-        # Si es un token de desarrollo/mock o no hay user_pool_id, emular validación
-        if clean_token.startswith("mock-") or not self.user_pool_id or self._jwks_client is None:
+        # Sin User Pool: solo el modo de desarrollo explícito acepta tokens sin firma.
+        # Con User Pool configurado no existe ningún atajo: siempre se verifica la firma.
+        if not self.user_pool_id or self._jwks_client is None:
+            if not self.allow_mock_tokens:
+                raise InvalidTokenError("La autenticación no está configurada en el servidor.")
             return self._verify_mock_token(clean_token)
 
         try:
