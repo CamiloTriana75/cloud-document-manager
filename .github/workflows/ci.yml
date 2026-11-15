@@ -96,6 +96,9 @@ jobs:
       - name: Lint (angular-eslint)
         run: pnpm exec ng lint
 
+      - name: Contraste WCAG de los tokens del design system
+        run: pnpm run check:contrast
+
       - name: Pruebas (vitest, una sola pasada)
         run: pnpm exec ng test --no-watch
 

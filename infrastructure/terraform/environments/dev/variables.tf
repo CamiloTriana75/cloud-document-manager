@@ -49,7 +49,21 @@ variable "max_file_size_mb" {
 variable "allowed_cors_origins" {
   description = "Orígenes CORS permitidos para la API y el bucket S3. Nunca '*' en producción."
   type        = list(string)
-  default     = ["http://localhost:4200"]
+  default = [
+    "http://localhost:4200",
+    "https://cloud-document-manager.vercel.app", # Frontend en Vercel (ADR-0011)
+  ]
+}
+
+variable "database_url" {
+  description = "DSN SQLAlchemy de PostgreSQL gestionado (ADR-0010), p. ej. postgresql+psycopg://...?sslmode=require. Pasar con TF_VAR_database_url; nunca en archivos versionados."
+  type        = string
+  sensitive   = true
+
+  validation {
+    condition     = startswith(var.database_url, "postgresql+psycopg://") && strcontains(var.database_url, "sslmode=require")
+    error_message = "database_url debe usar el driver postgresql+psycopg y exigir TLS (sslmode=require)."
+  }
 }
 
 variable "lambda_memory_mb" {

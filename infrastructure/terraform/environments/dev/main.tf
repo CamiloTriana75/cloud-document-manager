@@ -33,12 +33,19 @@ module "lambda_api" {
   s3_bucket_arn      = module.s3_document_store.bucket_arn
   package_path       = "${path.module}/../../../../build/cdm-api-lambda.zip"
 
+  # Nombres CDM_* que lee cdm.config.settings (CDM-132). Sin CDM_AUTH_MOCK_ENABLED:
+  # en AWS toda petición exige un JWT firmado por el User Pool.
   environment_variables = {
-    ENVIRONMENT           = var.environment
-    ALLOWED_CORS_ORIGINS  = join(",", var.allowed_cors_origins)
-    DOCUMENTS_BUCKET_NAME = module.s3_document_store.bucket_name
-    COGNITO_USER_POOL_ID  = module.cognito.user_pool_id
-    COGNITO_CLIENT_ID     = module.cognito.client_id
+    CDM_ENV                   = var.environment
+    CDM_LOG_LEVEL             = "INFO"
+    CDM_DATABASE_URL          = var.database_url
+    CDM_CORS_ORIGINS          = join(",", var.allowed_cors_origins)
+    CDM_COGNITO_REGION        = var.aws_region
+    CDM_COGNITO_USER_POOL_ID  = module.cognito.user_pool_id
+    CDM_COGNITO_CLIENT_ID     = module.cognito.client_id
+    CDM_S3_BUCKET_NAME        = module.s3_document_store.bucket_name
+    CDM_S3_REGION             = var.aws_region
+    CDM_MAX_UPLOAD_SIZE_BYTES = tostring(var.max_file_size_mb * 1024 * 1024)
   }
 
   tags = local.tags
@@ -133,10 +140,14 @@ module "lambda_worker" {
   s3_bucket_arn      = module.s3_document_store.bucket_arn
   package_path       = "${path.module}/../../../../build/cdm-api-lambda.zip"
   batch_size         = 10
+  max_concurrency    = 2 # La cuenta tiene 10 ejecuciones concurrentes de Lambda en total
 
   environment_variables = {
-    ENVIRONMENT           = var.environment
-    DOCUMENTS_BUCKET_NAME = module.s3_document_store.bucket_name
+    CDM_ENV            = var.environment
+    CDM_LOG_LEVEL      = "INFO"
+    CDM_DATABASE_URL   = var.database_url
+    CDM_S3_BUCKET_NAME = module.s3_document_store.bucket_name
+    CDM_S3_REGION      = var.aws_region
   }
 
   tags = local.tags

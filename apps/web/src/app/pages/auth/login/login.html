@@ -1,81 +1,71 @@
-<main class="auth-container">
-  <div class="auth-card">
-    <div class="auth-header">
-      <h1 class="auth-title">Iniciar sesión</h1>
-      <p class="auth-subtitle">Accede a tus workspaces y documentos en la nube</p>
+<app-auth-layout>
+  <header class="auth-head">
+    <h1 class="auth-title">Iniciar sesión</h1>
+    <p class="auth-sub">Accede a tus espacios de trabajo y documentos.</p>
+  </header>
+
+  @if (errorMessage(); as message) {
+    <app-alert type="danger">{{ message }}</app-alert>
+  }
+  @if (successMessage(); as message) {
+    <app-alert type="success">{{ message }}</app-alert>
+  }
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="auth-form" novalidate>
+    <div class="field">
+      <label for="email" class="field__label">Correo electrónico</label>
+      <input
+        id="email"
+        type="email"
+        class="input"
+        formControlName="email"
+        placeholder="tu@organizacion.com"
+        autocomplete="username"
+        [attr.aria-invalid]="invalid('email')"
+        [attr.aria-describedby]="invalid('email') ? 'email-error' : null"
+      />
+      @if (invalid('email')) {
+        <p id="email-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          Ingresa un correo electrónico válido.
+        </p>
+      }
     </div>
 
-    @if (errorMessage()) {
-      <div class="alert alert-error" role="alert" aria-live="polite">
-        <span class="alert-icon" aria-hidden="true">⚠️</span>
-        <span>{{ errorMessage() }}</span>
-      </div>
-    }
-
-    @if (successMessage()) {
-      <div class="alert alert-success" role="status" aria-live="polite">
-        <span class="alert-icon" aria-hidden="true">✅</span>
-        <span>{{ successMessage() }}</span>
-      </div>
-    }
-
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" novalidate>
-      <div class="form-group">
-        <label for="email" class="form-label">Correo electrónico</label>
-        <input
-          id="email"
-          type="email"
-          class="form-input"
-          formControlName="email"
-          placeholder="tu@organizacion.com"
-          autocomplete="username"
-          [attr.aria-invalid]="form.get('email')?.invalid && form.get('email')?.touched"
-          aria-describedby="email-error"
-        />
-        @if (form.get('email')?.invalid && form.get('email')?.touched) {
-          <span id="email-error" class="form-error">
-            Ingresa un correo electrónico válido.
-          </span>
-        }
-      </div>
-
-      <div class="form-group">
-        <label for="password" class="form-label">Contraseña</label>
+    <div class="field">
+      <label for="password" class="field__label">Contraseña</label>
+      <div class="password">
         <input
           id="password"
-          type="password"
-          class="form-input"
+          class="input"
           formControlName="password"
-          placeholder="••••••••"
           autocomplete="current-password"
-          [attr.aria-invalid]="form.get('password')?.invalid && form.get('password')?.touched"
-          aria-describedby="password-error"
+          [type]="showPassword() ? 'text' : 'password'"
+          [attr.aria-invalid]="invalid('password')"
+          [attr.aria-describedby]="invalid('password') ? 'password-error' : null"
         />
-        @if (form.get('password')?.invalid && form.get('password')?.touched) {
-          <span id="password-error" class="form-error">
-            La contraseña es obligatoria.
-          </span>
-        }
+        <button
+          type="button"
+          class="password__toggle"
+          aria-controls="password"
+          [attr.aria-pressed]="showPassword()"
+          (click)="togglePassword()"
+        >
+          {{ showPassword() ? 'Ocultar' : 'Mostrar' }}
+        </button>
       </div>
-
-      <button
-        type="submit"
-        class="btn btn-primary btn-block"
-        [disabled]="isSubmitting()"
-      >
-        @if (isSubmitting()) {
-          <span>Iniciando sesión...</span>
-        } @else {
-          <span>Entrar a CDM</span>
-        }
-      </button>
-    </form>
-
-    <div class="auth-footer">
-      <p>
-        ¿No tienes una cuenta?
-        <a routerLink="/auth/register" class="link">Crear cuenta</a>
-      </p>
+      @if (invalid('password')) {
+        <p id="password-error" class="field__error">
+          <app-icon name="alert-circle" [size]="15" />
+          La contraseña es obligatoria.
+        </p>
+      }
     </div>
-  </div>
-</main>
+
+    <button type="submit" class="btn btn--primary btn--block auth-submit" [disabled]="isSubmitting()">
+      {{ isSubmitting() ? 'Iniciando sesión…' : 'Entrar a CDM' }}
+    </button>
+  </form>
+
+  <p class="auth-alt">¿No tienes una cuenta? <a routerLink="/auth/register">Crear cuenta</a></p>
+</app-auth-layout>

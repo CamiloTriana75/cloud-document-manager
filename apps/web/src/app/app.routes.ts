@@ -27,8 +27,9 @@ export const routes: Routes = [
   },
   {
     path: 'auth/confirm',
-    redirectTo: 'auth/login',
-    pathMatch: 'full',
+    loadComponent: () =>
+      import('./pages/auth/confirm/confirm').then((m) => m.ConfirmComponent),
+    title: 'Confirmar cuenta — CDM',
   },
   {
     path: 'workspaces/new',

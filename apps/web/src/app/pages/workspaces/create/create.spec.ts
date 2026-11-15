@@ -48,7 +48,7 @@ describe('WorkspaceCreateComponent', () => {
     expect(component.form.controls.name.touched).toBe(true);
   });
 
-  it('llama a createWorkspace y navega al home en caso de éxito', () => {
+  it('llama a createWorkspace y abre el catálogo del nuevo espacio', () => {
     const navigateSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true);
     vi.spyOn(workspaceService, 'createWorkspace').mockReturnValue(
       of({
@@ -65,7 +65,7 @@ describe('WorkspaceCreateComponent', () => {
     component.form.controls.slug.setValue('nuevo');
     component.onSubmit();
 
-    expect(navigateSpy).toHaveBeenCalledWith(['/']);
+    expect(navigateSpy).toHaveBeenCalledWith(['/workspaces', 'ws-new', 'documents']);
     expect(component.isSubmitting()).toBe(false);
   });
 
@@ -87,4 +87,19 @@ describe('WorkspaceCreateComponent', () => {
     expect(component.submitError()).toBe('El slug ya existe.');
     expect(component.isSubmitting()).toBe(false);
   });
+
+  it('muestra la vista previa del identificador mientras se escribe el nombre (CDM-126)', () => {
+    const fixture = TestBed.createComponent(WorkspaceCreateComponent);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    const name = el.querySelector('#ws-name') as HTMLInputElement;
+
+    name.value = 'Equipo de Finanzas';
+    name.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+
+    expect(el.querySelector('h1')?.textContent).toContain('Crear espacio de trabajo');
+    expect(el.querySelector('.slug-preview')?.textContent).toContain('equipo-de-finanzas');
+  });
 });
+

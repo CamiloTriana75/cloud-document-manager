@@ -41,4 +41,16 @@ describe('AlertComponent (CDM-48)', () => {
 
     expect(dismissSpy).toHaveBeenCalled();
   });
+
+  it('usa iconos del sistema de iconos en lugar de glifos de texto', () => {
+    const fixture = TestBed.createComponent(AlertComponent);
+    fixture.componentRef.setInput('type', 'warning');
+    fixture.componentRef.setInput('dismissible', true);
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+
+    expect(el.querySelector('.alert-icon app-icon')).toBeTruthy();
+    expect(el.querySelector('.alert-close-btn app-icon')).toBeTruthy();
+    expect(el.querySelector('.alert-icon')?.textContent?.trim()).toBe('');
+  });
 });

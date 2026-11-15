@@ -281,3 +281,46 @@ def test_add_workspace_member_duplicate_raises_conflict(repos):
 
     with pytest.raises(UserAlreadyMemberError):
         add_uc.execute(owner, ws.id, "member@test.com", WorkspaceRole.MEMBER)
+
+
+def _invite(repos, invitee_email: str) -> UUID:
+    """Un OWNER crea un workspace e invita a un correo que aún no tiene cuenta."""
+    owner = AuthenticatedUser(cognito_sub="sub-owner", email="owner@test.com", email_verified=True)
+    ws = CreateWorkspaceUseCase(repos["workspaces"], repos["memberships"], repos["users"]).execute(
+        owner, name="Equipo Invitaciones"
+    )
+    AddWorkspaceMemberUseCase(repos["workspaces"], repos["memberships"], repos["users"]).execute(
+        owner, ws.id, invitee_email, WorkspaceRole.MEMBER
+    )
+    return ws.id
+
+
+def test_list_workspaces_links_invitation_for_verified_email(repos):
+    """Al iniciar sesión con correo verificado, el invitado ve el workspace (CDM-130)."""
+    ws_id = _invite(repos, "invitado@test.com")
+    invitee = AuthenticatedUser(
+        cognito_sub="sub-real-invitado", email="invitado@test.com", email_verified=True
+    )
+
+    workspaces = ListUserWorkspacesUseCase(
+        repos["workspaces"], repos["memberships"], repos["users"]
+    ).execute(invitee)
+
+    assert [w.id for w in workspaces] == [ws_id]
+
+
+def test_list_workspaces_does_not_link_invitation_for_unverified_email(repos):
+    """Un correo no verificado no puede reclamar invitaciones ajenas (CDM-130)."""
+    _invite(repos, "victima@test.com")
+    impostor = AuthenticatedUser(
+        cognito_sub="sub-impostor", email="victima@test.com", email_verified=False
+    )
+
+    workspaces = ListUserWorkspacesUseCase(
+        repos["workspaces"], repos["memberships"], repos["users"]
+    ).execute(impostor)
+
+    assert workspaces == []
+    placeholder = repos["users"].get_by_email("victima@test.com")
+    assert placeholder is not None
+    assert placeholder.cognito_sub == "invited:victima@test.com"

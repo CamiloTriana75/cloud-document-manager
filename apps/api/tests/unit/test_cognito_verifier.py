@@ -211,3 +211,38 @@ def test_key_rotation_failure_handled(
 
     with pytest.raises(InvalidTokenError, match="No se pudo resolver la clave pública"):
         verifier.verify_token("header.payload.signature")
+
+
+# --- Modo de desarrollo sin firma (tokens mock) — CDM-130 ---
+
+
+def _unsigned_dev_token(sub: str = "mock-sub-atacante") -> str:
+    """Token con el formato que emite el frontend en modo desarrollo (sin firma real)."""
+    payload = {"sub": sub, "email": "victima@empresa.com", "token_use": "access"}
+    body = jwt.encode(payload, key="", algorithm="none")
+    return f"mock-access-token-123.{body}.mock-signature"
+
+
+def test_unsigned_mock_token_rejected_when_user_pool_configured(
+    verifier: CognitoJwtVerifier,
+) -> None:
+    """Con User Pool configurado, un token con prefijo mock- nunca evita la verificación."""
+    with pytest.raises(InvalidTokenError):
+        verifier.verify_token(_unsigned_dev_token())
+
+
+def test_tokens_rejected_without_user_pool_when_mock_mode_disabled() -> None:
+    """Sin User Pool y sin modo mock explícito, la verificación falla cerrada."""
+    verifier = CognitoJwtVerifier(user_pool_id="", allow_mock_tokens=False)
+
+    with pytest.raises(InvalidTokenError):
+        verifier.verify_token(_unsigned_dev_token())
+
+
+def test_mock_tokens_accepted_only_when_explicitly_enabled() -> None:
+    """El modo mock solo funciona sin User Pool y con la bandera explícita de desarrollo."""
+    verifier = CognitoJwtVerifier(user_pool_id="", allow_mock_tokens=True)
+
+    user = verifier.verify_token(_unsigned_dev_token(sub="mock-sub-dev"))
+
+    assert user.cognito_sub == "mock-sub-dev"

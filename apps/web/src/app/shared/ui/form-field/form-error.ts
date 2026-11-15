@@ -1,33 +1,28 @@
-import { CommonModule } from '@angular/common';
-import { Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
+import { IconComponent } from '../icon/icon';
+
+/** Error de campo asociado por `id` (el control lo referencia con aria-describedby). */
 @Component({
   selector: 'app-form-error',
-  standalone: true,
-  imports: [CommonModule],
+  imports: [IconComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (message()) {
-      <p class="form-error-msg" [id]="id()" role="alert" aria-live="polite">
-        <span class="error-bullet" aria-hidden="true">⚠</span>
+      <p class="form-error-msg field__error" [id]="id()" role="alert" aria-live="polite">
+        <app-icon name="alert-circle" [size]="15" />
         <span>{{ message() }}</span>
       </p>
     }
   `,
-  styles: [
-    `
-      .form-error-msg {
-        display: flex;
-        align-items: center;
-        gap: var(--space-1);
-        margin: var(--space-1) 0 0 0;
-        font-size: var(--font-size-sm);
-        color: var(--color-danger);
-      }
-      .error-bullet {
-        font-size: 0.875rem;
-      }
-    `,
-  ],
+  styles: `
+    :host {
+      display: block;
+    }
+    .form-error-msg {
+      margin: 0;
+    }
+  `,
 })
 export class FormErrorComponent {
   readonly message = input<string | null>(null);

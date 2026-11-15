@@ -114,6 +114,12 @@ resource "aws_lambda_event_source_mapping" "sqs_trigger" {
   function_response_types = ["ReportBatchItemFailures"]
   enabled                 = true
 
+  # Tope de ejecuciones concurrentes del worker: comparte el límite de concurrencia
+  # de Lambda de la cuenta con la API y no debe dejarla sin capacidad (CDM-132).
+  scaling_config {
+    maximum_concurrency = var.max_concurrency
+  }
+
   depends_on = [
     aws_iam_role_policy.worker_sqs_policy
   ]

@@ -38,7 +38,7 @@ describe('App (shell y navegación CDM-44)', () => {
     router = TestBed.inject(Router);
   });
 
-  it('renderiza header con marca y skip link accesible', () => {
+  it('renderiza header con marca, skip link accesible y main enfocable', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
@@ -48,7 +48,7 @@ describe('App (shell y navegación CDM-44)', () => {
     );
     const skip = el.querySelector<HTMLAnchorElement>('.skip-link');
     expect(skip?.getAttribute('href')).toBe('#main');
-    expect(el.querySelector('main#main')).toBeTruthy();
+    expect(el.querySelector('main#main')?.getAttribute('tabindex')).toBe('-1');
   });
 
   it('muestra enlaces de autenticación cuando el usuario no está autenticado', () => {
@@ -88,7 +88,8 @@ describe('App (shell y navegación CDM-44)', () => {
     // Estado de sesión
     expect(el.querySelector('.user-name')?.textContent).toContain('Admin Empresa');
     expect(el.querySelector('.role-admin')?.textContent).toContain('ADMIN');
-    expect(el.querySelector('.btn-logout')).toBeTruthy();
+    expect(el.querySelector('[aria-label="Menú de usuario"]')).toBeTruthy();
+    expect(el.querySelector('.desktop-nav a[aria-current="page"]')).toBeNull();
   });
 
   it('ejecuta cierre de sesión y redirige a login', () => {
@@ -103,7 +104,9 @@ describe('App (shell y navegación CDM-44)', () => {
     const fixture = TestBed.createComponent(App);
     fixture.detectChanges();
 
-    const logoutBtn = fixture.nativeElement.querySelector('.btn-logout') as HTMLButtonElement;
+    const logoutBtn = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('button'),
+    ).find((button) => button.textContent?.includes('Cerrar sesión')) as HTMLButtonElement;
     logoutBtn.click();
     fixture.detectChanges();
 

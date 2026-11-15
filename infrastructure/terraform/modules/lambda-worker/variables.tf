@@ -68,3 +68,14 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "max_concurrency" {
+  description = "Máximo de ejecuciones concurrentes del worker disparadas por SQS (mínimo permitido por AWS: 2)."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.max_concurrency >= 2 && var.max_concurrency <= 1000
+    error_message = "max_concurrency debe estar entre 2 y 1000."
+  }
+}

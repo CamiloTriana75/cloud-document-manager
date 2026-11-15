@@ -1,5 +1,5 @@
 # CDM — servicios locales de desarrollo.
-# Solo PostgreSQL. La API corre nativa: uv run uvicorn cdm.bootstrap.app:app --reload
+# PostgreSQL y un emulador S3 (moto). La API corre nativa: uv run uvicorn cdm.bootstrap.app:app --reload
 # Uso: docker compose up -d   |   docker compose down -v  (borra datos)
 
 services:
@@ -19,6 +19,14 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Emulador S3 solo para desarrollo local (no prueba seguridad ni equivalencia con AWS real).
+  # Crear el bucket una vez: uv run python scripts/init_local_s3.py
+  s3:
+    image: motoserver/moto:5.1.4
+    container_name: cdm-s3
+    ports:
+      - "9000:5000"
 
 volumes:
   cdm_pgdata:

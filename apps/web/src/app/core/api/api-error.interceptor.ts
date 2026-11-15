@@ -16,7 +16,8 @@ export const apiErrorInterceptor: HttpInterceptorFn = (req, next) => {
       error: (error: unknown) => {
         if (error instanceof HttpErrorResponse) {
           console.error(
-            `[API] ${req.method} ${req.urlWithParams} → ${error.status}`,
+            // Sin query string: nunca registrar firmas de URLs prefirmadas (AGENTS.md §12)
+            `[API] ${req.method} ${req.url.split('?')[0]} → ${error.status}`,
           );
         }
       },

@@ -31,7 +31,7 @@ test.describe('Journey E2E: Gestión de Workspaces y Miembros (CDM-50)', () => {
     await submitBtn.click();
 
     // Redirección a la vista principal tras la creación
-    await expect(page).toHaveURL('http://localhost:4200/');
+    await expect(page).toHaveURL(/\/workspaces\/[^/]+\/documents$/);
   });
 
   test('debe validar errores de validación de slug y campos obligatorios', async ({ page }) => {
@@ -69,7 +69,7 @@ test.describe('Journey E2E: Gestión de Workspaces y Miembros (CDM-50)', () => {
     await expect(page.getByRole('heading', { name: /Miembros de Empresa Demo/i })).toBeVisible();
 
     // Miembro existente en la tabla
-    await expect(page.getByText(MOCK_USER.email)).toBeVisible();
+    await expect(page.getByRole('main').getByText(MOCK_USER.email)).toBeVisible();
 
     // Formulario de invitación para OWNER
     await expect(page.getByRole('heading', { name: 'Invitar a un nuevo miembro' })).toBeVisible();
@@ -96,7 +96,7 @@ test.describe('Journey E2E: Gestión de Workspaces y Miembros (CDM-50)', () => {
     await page.goto(`/workspaces/${MOCK_WORKSPACE_VIEWER.id}/members`);
 
     // Debe ver el listado
-    await expect(page.getByText(MOCK_USER.email)).toBeVisible();
+    await expect(page.getByRole('main').getByText(MOCK_USER.email)).toBeVisible();
 
     // NO debe ver el formulario de invitar
     await expect(page.getByRole('heading', { name: 'Invitar a un nuevo miembro' })).not.toBeVisible();

@@ -30,8 +30,8 @@ class S3StorageAdapter(StoragePort):
         self._mock_data: dict[str, bytes] = {}
 
     def _get_s3_client(self) -> Any:
-        import boto3  # type: ignore[import-not-found]
-        from botocore.config import Config  # type: ignore[import-not-found]
+        import boto3  # type: ignore[import-untyped]
+        from botocore.config import Config  # type: ignore[import-untyped]
 
         return boto3.client(
             "s3",
@@ -39,7 +39,12 @@ class S3StorageAdapter(StoragePort):
             endpoint_url=self._endpoint_url,
             config=Config(
                 signature_version="s3v4",
-                s3={"addressing_style": "virtual", "us_east_1_regional_endpoint": "regional"},
+                s3={
+                    # Emuladores locales (moto, MinIO) requieren el bucket en la ruta:
+                    # bucket.localhost no resuelve en todos los clientes.
+                    "addressing_style": "path" if self._endpoint_url else "virtual",
+                    "us_east_1_regional_endpoint": "regional",
+                },
             ),
         )
 
