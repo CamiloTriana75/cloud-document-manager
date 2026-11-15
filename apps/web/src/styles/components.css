@@ -379,6 +379,16 @@ button.chip:hover,
 .table-scroll {
   width: 100%;
   overflow-x: auto;
+  container-type: inline-size;
+}
+
+/* Panel estrecho (catálogo junto al panel de Actividad): el ID corto es secundario y se
+   oculta para que las acciones de cada fila nunca queden fuera de la vista. */
+@container (max-width: 50rem) {
+  .data-table th:first-child,
+  .data-table .cell-id {
+    display: none;
+  }
 }
 
 .data-table {
