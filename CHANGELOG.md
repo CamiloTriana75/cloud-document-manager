@@ -19,6 +19,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - **URL base de la API centralizada:** `apiBaseUrlInterceptor` resuelve la URL; el token solo se envía a la API propia y se usa el ID token, que incluye `email` y `email_verified`.
 - **Concurrencia de Lambda:** reintento con backoff para lecturas ante 429/502/503/504, estadísticas del dashboard pedidas en serie y worker limitado a 2 ejecuciones concurrentes.
 - **Desarrollo local:** emulador S3 (moto) en `compose.yaml` y `scripts/init_local_s3.py`.
+- **README para portafolio:** demo en vivo, capturas reales de la aplicación desplegada (`docs/images/`), decisiones técnicas, calidad y límites conocidos.
 - Escena 3D procedural con three.js cargado bajo demanda (ADR-0009), con respaldo CSS y soporte de `prefers-reduced-motion`.
 - Carga de varios archivos con cola, progreso, cancelación y reintento por archivo (AGENTS.md §9).
 - `pnpm run check:contrast`: verificación WCAG AA de los tokens, ejecutada en CI.
@@ -38,6 +39,7 @@ y este proyecto se adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 - **Settings:** se lee el `.env` de la raíz del repo (antes nunca se cargaba desde `apps/api`) y `.env.example` se alinea con los nombres reales.
 - **Frontend:** decodificación base64url y UTF-8 de los JWT de Cognito (la sesión restaurada mostraba un usuario ficticio); el token no se enviaba a API Gateway porque se excluía todo `*.amazonaws.com`.
 - **CI de `develop`:** mypy fallaba con los imports de `boto3` (`import-untyped`).
+- **Tabla del catálogo:** los botones de eliminar y detalle quedaban fuera del panel; ahora se oculta la columna ID en paneles estrechos.
 - Filtro por tipo enviaba prefijos MIME que el backend compara por igualdad (devolvía 0 resultados).
 - Búsqueda del catálogo sin debounce ni cancelación (respuestas fuera de orden).
 - `<main>` anidado en autenticación, diálogos sin gestión de foco, emojis como iconos.
