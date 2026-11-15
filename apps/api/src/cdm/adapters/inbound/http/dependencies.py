@@ -132,6 +132,7 @@ def get_storage_port(
     return S3StorageAdapter(
         bucket_name=settings.s3_bucket_name,
         region=settings.s3_region,
+        endpoint_url=settings.s3_endpoint_url,
     )
 
 

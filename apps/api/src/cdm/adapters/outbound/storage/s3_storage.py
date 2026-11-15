@@ -39,7 +39,12 @@ class S3StorageAdapter(StoragePort):
             endpoint_url=self._endpoint_url,
             config=Config(
                 signature_version="s3v4",
-                s3={"addressing_style": "virtual", "us_east_1_regional_endpoint": "regional"},
+                s3={
+                    # Emuladores locales (moto, MinIO) requieren el bucket en la ruta:
+                    # bucket.localhost no resuelve en todos los clientes.
+                    "addressing_style": "path" if self._endpoint_url else "virtual",
+                    "us_east_1_regional_endpoint": "regional",
+                },
             ),
         )
 
