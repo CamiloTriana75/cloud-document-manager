@@ -92,7 +92,7 @@ Asegúrate de contar con las siguientes herramientas instaladas localmente:
 
 ## 5. Puesta en Marcha en Entorno Local
 
-El desarrollo local está optimizado para ejecutarse en segundos. Únicamente PostgreSQL corre en contenedor Docker; el backend y el frontend se ejecutan nativamente con recarga en caliente (*hot-reload*).
+El desarrollo local está optimizado para ejecutarse en segundos. PostgreSQL y un emulador de S3 (moto) corren en Docker; el backend y el frontend se ejecutan nativamente con recarga en caliente (*hot-reload*). En local no hace falta AWS: la autenticación usa el modo de desarrollo sin Cognito y los archivos van al emulador.
 
 ### 5.1 Configuración de Variables de Entorno
 Copia la plantilla de entorno en la raíz del repositorio:
@@ -100,13 +100,20 @@ Copia la plantilla de entorno en la raíz del repositorio:
 ```bash
 cp .env.example .env
 ```
-*(Los valores por defecto de `.env.example` están preconfigurados para funcionar inmediatamente con el entorno local de Docker).*
+*(Los valores por defecto de `.env.example` están preconfigurados para el entorno local de Docker).* Para el flujo completo sin AWS, define además en `.env`:
+
+```bash
+CDM_AUTH_MOCK_ENABLED=true                 # tokens sin firma del frontend local (prohibido en prod)
+CDM_S3_BUCKET_NAME=cdm-documents-dev       # bucket del emulador
+CDM_S3_ENDPOINT_URL=http://localhost:9000  # emulador S3 (moto)
+```
 
 ### 5.2 Base de Datos Local (PostgreSQL)
-Inicia el contenedor de base de datos PostgreSQL 16:
+Inicia PostgreSQL 16 y el emulador S3, y crea el bucket local una sola vez:
 
 ```bash
 docker compose up -d
+uv run --project apps/api python scripts/init_local_s3.py
 ```
 Verifica que el servicio esté saludable en `localhost:5432`:
 ```bash
@@ -125,9 +132,10 @@ uv sync
 # 2. Aplicar migraciones de base de datos
 uv run alembic upgrade head
 
-# 3. Iniciar servidor de desarrollo (hot reload)
-uv run uvicorn cdm.bootstrap.app:app --reload --port 8000
+# 3. Iniciar servidor de desarrollo (hot reload). Credenciales ficticias para el emulador S3:
+AWS_ACCESS_KEY_ID=test AWS_SECRET_ACCESS_KEY=test uv run uvicorn cdm.bootstrap.app:app --reload --port 8000
 ```
+La API lee `.env` de la raíz del repo y, si existe, `apps/api/.env` (que tiene prioridad).
 - Endpoint de verificación de salud: `http://localhost:8000/health`
 - Documentación OpenAPI interactiva: `http://localhost:8000/docs`
 
@@ -187,6 +195,8 @@ pnpm exec playwright test
 
 ## 7. Despliegue en AWS (Entorno Dev)
 
+**Entorno desplegado:** frontend en **https://cloud-document-manager.vercel.app** (Vercel, [ADR-0011](docs/adr/0011-frontend-en-vercel.md)) → API Gateway + Lambda → PostgreSQL gestionado en Neon ([ADR-0010](docs/adr/0010-postgresql-gestionado-neon.md)), Cognito, S3, SQS y worker. Procedimiento completo, verificación (`scripts/cloud_smoke_test.py`) y diagnóstico en [`docs/runbooks/cloud-deployment.md`](docs/runbooks/cloud-deployment.md).
+
 > [!CAUTION]
 > **RESTRICCIONES FINANCIERAS Y DE SEGURIDAD OBLIGATORIAS (*AGENTS.md* §13):**
 > - Prohibido aprovisionar recursos continuos de alto coste (NAT Gateways, balanceadores dedicados, clusters EKS).
@@ -207,6 +217,9 @@ terraform validate
 
 ### 7.2 Planificación y Revisión de Infraestructura
 ```bash
+# Paquete de la Lambda (API y worker) y DSN de la base de datos como variable sensible
+uv run --project ../../../../apps/api python ../../../../scripts/package_lambda_api.py -o ../../../../build/cdm-api-lambda.zip
+export TF_VAR_database_url='postgresql+psycopg://...?sslmode=require'
 terraform plan -out=tfplan
 ```
 Revisa detalladamente la lista de recursos a crear:
@@ -244,7 +257,8 @@ terraform destroy
 | **Runbook de Operaciones** | [`docs/runbooks/operations-runbook.md`](docs/runbooks/operations-runbook.md) | Diagnóstico Lambda/SQS/DLQ y mitigación de errores de carga |
 | **Runbook Backup & Restore** | [`docs/runbooks/backup-restore.md`](docs/runbooks/backup-restore.md) | Backups PostgreSQL, reconciliación S3 y ciclo de vida de objetos |
 | **Runbook Teardown AWS** | [`docs/runbooks/aws-teardown.md`](docs/runbooks/aws-teardown.md) | Guía de destrucción Terraform y checklist antes de expiración del plan |
-| **Decisiones de Arquitectura** | [`docs/adr/`](docs/adr/README.md) | Registros de decisión arquitectónica (ADR-0001 a ADR-0008) |
+| **Runbook Despliegue en la Nube** | [`docs/runbooks/cloud-deployment.md`](docs/runbooks/cloud-deployment.md) | Neon, Terraform, Vercel, smoke test y diagnóstico |
+| **Decisiones de Arquitectura** | [`docs/adr/`](docs/adr/README.md) | Registros de decisión arquitectónica (ADR-0001 a ADR-0011) |
 
 ---
 
