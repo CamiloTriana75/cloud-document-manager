@@ -30,8 +30,8 @@ class S3StorageAdapter(StoragePort):
         self._mock_data: dict[str, bytes] = {}
 
     def _get_s3_client(self) -> Any:
-        import boto3  # type: ignore[import-not-found]
-        from botocore.config import Config  # type: ignore[import-not-found]
+        import boto3  # type: ignore[import-untyped]
+        from botocore.config import Config  # type: ignore[import-untyped]
 
         return boto3.client(
             "s3",
