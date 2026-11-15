@@ -28,6 +28,10 @@ src/
     └── pages/                 inicio, documentos (dashboard y carga), workspaces, autenticación
 ```
 
+## Despliegue
+
+Producción en Vercel: **https://cloud-document-manager.vercel.app** ([ADR-0011](../../docs/adr/0011-frontend-en-vercel.md)). La configuración del build está en `vercel.json` y los valores públicos de la nube (URL de API Gateway, User Pool y App Client) en `src/environments/environment.prod.ts`. Los servicios usan rutas relativas `/api`; `apiBaseUrlInterceptor` antepone la URL base en la nube y el proxy del dev-server las atiende en local. Procedimiento: [`docs/runbooks/cloud-deployment.md`](../../docs/runbooks/cloud-deployment.md).
+
 ## Diseño
 
 - Sistema visual y API de componentes: [`docs/architecture/design-system.md`](../../docs/architecture/design-system.md).

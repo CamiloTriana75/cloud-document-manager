@@ -3,6 +3,8 @@
 > Jira: **CDM-20** (subtareas **CDM-119** y **CDM-120**) · Fecha: 2026-11-12
 > Regla rectora: [`AGENTS.md`](../../AGENTS.md) §13 (AWS, costes y Terraform) y §20 (Protocolo de agentes).
 
+> Procedimiento completo del entorno desplegado (Neon, Vercel, smoke test): [`cloud-deployment.md`](cloud-deployment.md).
+
 Este runbook documenta el procedimiento reproducible para empaquetar, desplegar, validar y hacer rollback del backend FastAPI sobre AWS Lambda y API Gateway HTTP API.
 
 ---
@@ -38,7 +40,8 @@ terraform fmt -check -recursive
 terraform validate
 
 # 3. Generar plan de ejecución para revisión
-terraform plan -var="lambda_package_path=../../../build/cdm-api-lambda.zip" -out=tfplan
+export TF_VAR_database_url='<dsn de Neon con -pooler>'   # ADR-0010
+terraform plan -out=tfplan
 
 # 4. Aplicar tras aprobación expresa
 terraform apply tfplan

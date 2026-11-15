@@ -21,7 +21,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from cdm.adapters.outbound.persistence.engine import create_db_engine
-from cdm.config.settings import load_settings
+from cdm.config.settings import Settings, load_settings
 from cdm.domain.document import Document, DocumentStatus
 from cdm.domain.upload_session import UploadSession, UploadSessionStatus
 from cdm.domain.workspace import (
@@ -45,6 +45,8 @@ def safe_test_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setenv("CDM_ENV", "test")
     monkeypatch.setenv("CDM_DOCUMENTS_BUCKET", "test-cdm-documents-bucket")
+    # Las pruebas no leen el .env local del desarrollador (configuración hermética).
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
 
 
 # --- 2. Bloqueo de llamadas de red externas accidentales (Autouse) ---

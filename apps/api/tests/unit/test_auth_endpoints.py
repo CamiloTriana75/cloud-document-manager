@@ -91,3 +91,16 @@ def test_get_me_with_valid_token_returns_200_and_user_profile(client: TestClient
     assert body["data"]["name"] == "Ana Garcia"
     assert body["data"]["email_verified"] is True
     assert body["data"]["token_use"] == "access"
+
+
+def test_get_me_rejects_unsigned_token_when_mock_mode_disabled() -> None:
+    """Sin User Pool ni modo mock explícito, la API no acepta tokens sin firma (CDM-130)."""
+    from cdm.config.settings import Settings
+
+    app = create_app(Settings(cognito_user_pool_id="", auth_mock_enabled=False))
+    response = TestClient(app).get(
+        "/api/v1/me",
+        headers={"Authorization": "Bearer mock-access-token-1.e30.mock-signature"},
+    )
+
+    assert response.status_code == 401

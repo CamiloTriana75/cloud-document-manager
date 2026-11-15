@@ -23,6 +23,7 @@ export class ConfirmComponent implements OnInit {
   readonly errorMessage = signal<string | null>(null);
   readonly successMessage = signal<string | null>(null);
   readonly isSubmitting = signal<boolean>(false);
+  readonly isResending = signal<boolean>(false);
 
   readonly form = this.fb.group({
     email: ['', [Validators.required, Validators.email]],
@@ -57,11 +58,41 @@ export class ConfirmComponent implements OnInit {
       next: () => {
         this.isSubmitting.set(false);
         this.successMessage.set('¡Cuenta confirmada exitosamente! Ya puedes iniciar sesión.');
-        setTimeout(() => void this.router.navigate(['/auth/login']), 2000);
+        setTimeout(
+          () =>
+            void this.router.navigate(['/auth/login'], {
+              queryParams: { confirmed: 'true', email },
+            }),
+          1500,
+        );
       },
       error: (err) => {
         this.isSubmitting.set(false);
         this.errorMessage.set(err.message || 'Código de confirmación incorrecto o expirado.');
+      },
+    });
+  }
+
+  /** Envía un código nuevo al correo indicado (los códigos de Cognito caducan). */
+  resendCode(): void {
+    const emailControl = this.form.controls.email;
+    if (emailControl.invalid) {
+      emailControl.markAsTouched();
+      return;
+    }
+
+    this.errorMessage.set(null);
+    this.successMessage.set(null);
+    this.isResending.set(true);
+
+    this.authService.resendConfirmationCode(emailControl.value!).subscribe({
+      next: () => {
+        this.isResending.set(false);
+        this.successMessage.set('Te enviamos un nuevo código. Revisa tu correo.');
+      },
+      error: (err: unknown) => {
+        this.isResending.set(false);
+        this.errorMessage.set(err instanceof Error ? err.message : 'No se pudo reenviar el código.');
       },
     });
   }

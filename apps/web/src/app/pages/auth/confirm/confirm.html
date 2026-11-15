@@ -61,5 +61,11 @@
     </button>
   </form>
 
+  <p class="auth-alt">
+    ¿No te llegó el código?
+    <button type="button" class="btn btn--ghost btn--sm" (click)="resendCode()" [disabled]="isResending()">
+      {{ isResending() ? 'Enviando…' : 'Reenviar código' }}
+    </button>
+  </p>
   <p class="auth-alt"><a routerLink="/auth/login">Volver al inicio de sesión</a></p>
 </app-auth-layout>

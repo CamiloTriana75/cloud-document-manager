@@ -57,24 +57,30 @@ class WorkspaceMemberDTO:
 
 
 def _sync_user(user_repo: UserRepositoryPort, auth_user: AuthenticatedUser) -> User:
-    """Sincroniza o crea la entidad de usuario a partir del token autenticado."""
+    """Sincroniza o crea la entidad de usuario a partir del token autenticado.
+
+    El correo del token solo se considera fiable cuando el proveedor de identidad lo
+    marca como verificado (``email_verified``): únicamente entonces se actualiza el
+    correo guardado o se vincula una invitación previa hecha a ese correo (CDM-130).
+    """
     existing = user_repo.get_by_cognito_sub(auth_user.cognito_sub)
     if existing:
-        # Actualiza email o display_name si cambiaron
-        if existing.email != auth_user.email or existing.display_name != auth_user.name:
+        email = auth_user.email if auth_user.email_verified else existing.email
+        display_name = auth_user.name or existing.display_name
+        if existing.email != email or existing.display_name != display_name:
             updated = User(
                 id=existing.id,
                 cognito_sub=existing.cognito_sub,
-                email=auth_user.email,
-                display_name=auth_user.name or existing.display_name,
+                email=email,
+                display_name=display_name,
                 created_at=existing.created_at,
                 updated_at=datetime.now(existing.updated_at.tzinfo),
             )
             return user_repo.save(updated)
         return existing
 
-    # Si no existe por cognito_sub, buscar por email para vincular invitaciones previas
-    by_email = user_repo.get_by_email(auth_user.email)
+    # Si no existe por cognito_sub, vincular invitaciones previas solo con correo verificado
+    by_email = user_repo.get_by_email(auth_user.email) if auth_user.email_verified else None
     if by_email:
         linked = User(
             id=by_email.id,
@@ -159,9 +165,8 @@ class ListUserWorkspacesUseCase:
         self._user_repo = user_repo
 
     def execute(self, auth_user: AuthenticatedUser) -> list[WorkspaceWithRoleDTO]:
-        user = self._user_repo.get_by_cognito_sub(auth_user.cognito_sub)
-        if user is None:
-            return []
+        # Primer contacto tras el login: sincroniza al usuario y vincula sus invitaciones
+        user = _sync_user(self._user_repo, auth_user)
 
         memberships = self._membership_repo.list_by_user_id(user.id, status=MembershipStatus.ACTIVE)
         results: list[WorkspaceWithRoleDTO] = []

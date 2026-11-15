@@ -1,9 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
-import { describe, expect, it, beforeEach } from 'vitest';
+import { ActivatedRoute, provideRouter, Router } from '@angular/router';
+import { throwError } from 'rxjs';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 
+import { AuthError } from '../../../core/auth/auth-errors';
+import { AuthService } from '../../../core/auth/auth.service';
 import { LoginComponent } from './login';
 
 describe('LoginComponent', () => {
@@ -55,5 +58,29 @@ describe('LoginComponent', () => {
 
   it('no anida un <main> dentro del shell (CDM-127)', () => {
     expect((fixture.nativeElement as HTMLElement).querySelector('main')).toBeNull();
+  });
+
+  it('si la cuenta no está confirmada, lleva a la pantalla de código (CDM-133)', () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    vi.spyOn(TestBed.inject(AuthService), 'login').mockReturnValue(
+      throwError(() => new AuthError('user-not-confirmed', 'Tu cuenta aún no ha sido confirmada.')),
+    );
+    component.form.setValue({ email: 'ana@empresa.com', password: 'Segura123!' });
+
+    component.onSubmit();
+
+    expect(navigate).toHaveBeenCalledWith(['/auth/confirm'], {
+      queryParams: { email: 'ana@empresa.com' },
+    });
+  });
+
+  it('tras confirmar la cuenta muestra el aviso y precarga el correo (CDM-133)', () => {
+    const route = TestBed.inject(ActivatedRoute);
+    route.snapshot.queryParams = { confirmed: 'true', email: 'ana@empresa.com' };
+
+    component.ngOnInit();
+
+    expect(component.successMessage()).toContain('confirmada');
+    expect(component.form.controls.email.value).toBe('ana@empresa.com');
   });
 });

@@ -41,13 +41,23 @@ describe('DocumentStatsService', () => {
 
   afterEach(() => http.verify());
 
+  /**
+   * Las consultas se sirven de una en una: la cuenta AWS tiene un límite bajo de
+   * ejecuciones concurrentes de Lambda y una ráfaga de 6 peticiones provocaba 503 (CDM-133).
+   */
   async function load(respond: (status: string | null, req: TestRequest) => void): Promise<DocumentStats> {
     const result = firstValueFrom(service.load(WS, NOW));
-    const requests = http.match((r) => r.url === `/api/v1/workspaces/${WS}/documents`);
-    expect(requests.length).toBe(6);
-    for (const req of requests) {
-      respond(req.request.params.get('status'), req);
+    let served = 0;
+    for (;;) {
+      const pending = http.match((r) => r.url === `/api/v1/workspaces/${WS}/documents`);
+      if (pending.length === 0) {
+        break;
+      }
+      expect(pending.length).toBe(1);
+      respond(pending[0].request.params.get('status'), pending[0]);
+      served++;
     }
+    expect(served).toBe(6);
     return result;
   }
 

@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, OnInit, signal } from '@ang
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 
+import { AuthError } from '../../../core/auth/auth-errors';
 import { AuthService } from '../../../core/auth/auth.service';
 import { AlertComponent } from '../../../shared/ui/alert/alert';
 import { IconComponent } from '../../../shared/ui/icon/icon';
@@ -31,13 +32,14 @@ export class LoginComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    const registered = this.route.snapshot.queryParams['registered'];
-    const email = this.route.snapshot.queryParams['email'];
-    if (registered === 'true') {
+    const { registered, confirmed, email } = this.route.snapshot.queryParams;
+    if (confirmed === 'true') {
+      this.successMessage.set('Cuenta confirmada. Ya puedes iniciar sesión.');
+    } else if (registered === 'true') {
       this.successMessage.set('¡Cuenta creada exitosamente! Ya puedes iniciar sesión.');
-      if (email) {
-        this.form.patchValue({ email });
-      }
+    }
+    if (email && (confirmed === 'true' || registered === 'true')) {
+      this.form.patchValue({ email });
     }
   }
 
@@ -67,9 +69,13 @@ export class LoginComponent implements OnInit {
         const returnUrl = this.route.snapshot.queryParams['returnUrl'] || '/';
         void this.router.navigateByUrl(returnUrl);
       },
-      error: (err) => {
+      error: (err: unknown) => {
         this.isSubmitting.set(false);
-        this.errorMessage.set(err.message || 'Error al iniciar sesión.');
+        if (err instanceof AuthError && err.code === 'user-not-confirmed') {
+          void this.router.navigate(['/auth/confirm'], { queryParams: { email } });
+          return;
+        }
+        this.errorMessage.set(err instanceof Error ? err.message : 'Error al iniciar sesión.');
       },
     });
   }

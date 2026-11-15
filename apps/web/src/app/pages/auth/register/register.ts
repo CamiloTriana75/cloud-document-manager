@@ -101,7 +101,13 @@ export class RegisterComponent {
     const { name, email, password } = this.form.getRawValue();
 
     this.authService.register({ name: name!, email: email!, password: password! }).subscribe({
-      next: () => {
+      next: ({ userConfirmed }) => {
+        if (!userConfirmed) {
+          // Cognito envió un código al correo: la cuenta se activa al confirmarlo (CDM-133)
+          this.isSubmitting.set(false);
+          void this.router.navigate(['/auth/confirm'], { queryParams: { email } });
+          return;
+        }
         this.authService.login({ email: email!, password: password! }).subscribe({
           next: () => {
             this.isSubmitting.set(false);
