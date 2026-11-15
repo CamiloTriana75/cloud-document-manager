@@ -2,13 +2,24 @@
 
 Solo variables con prefijo ``CDM_`` (ver ``.env.example`` en la raíz).
 No incluye secretos: los valores sensibles llegan por entorno/secrets manager.
+
+El archivo ``.env`` se busca en el directorio de trabajo y en la raíz del
+repositorio (``../../.env`` al ejecutar desde ``apps/api``); en Lambda no
+existe y toda la configuración llega por variables de entorno.
 """
 
+from typing import Self
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CDM_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="CDM_",
+        env_file=("../../.env", ".env"),
+        extra="ignore",
+    )
 
     env: str = "dev"
     database_url: str = "postgresql+psycopg://cdm:cdm@localhost:5432/cdm"
@@ -17,11 +28,20 @@ class Settings(BaseSettings):
     cognito_user_pool_id: str = ""
     cognito_client_id: str = ""
     cognito_region: str = "us-east-1"
-    s3_bucket_name: str = "cdm-dev-docs-189648741673"
+    # Modo de desarrollo local sin Cognito: acepta tokens sin firma. Solo se activa de
+    # forma explícita (CDM_AUTH_MOCK_ENABLED=true) y nunca con CDM_ENV=prod (CDM-130).
+    auth_mock_enabled: bool = False
+    s3_bucket_name: str = "cdm-documents-dev"
     s3_region: str = "us-east-1"
     s3_endpoint_url: str | None = None
     max_upload_size_bytes: int = 52428800  # 50 MB
     upload_url_expires_in_seconds: int = 900  # 15 min
+
+    @model_validator(mode="after")
+    def _forbid_mock_auth_in_prod(self) -> Self:
+        if self.auth_mock_enabled and self.env == "prod":
+            raise ValueError("CDM_AUTH_MOCK_ENABLED no puede activarse con CDM_ENV=prod.")
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:
