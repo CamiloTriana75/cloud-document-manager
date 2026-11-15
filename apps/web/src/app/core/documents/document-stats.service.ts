@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { forkJoin, map, Observable } from 'rxjs';
+import { concatMap, from, map, Observable, toArray } from 'rxjs';
 
 import { DocumentService } from './document.service';
 
@@ -61,18 +61,21 @@ export class DocumentStatsService {
     const windowStart = startOfDay(now);
     windowStart.setDate(windowStart.getDate() - (STATS_WINDOW_DAYS - 1));
 
-    const counts = forkJoin(
-      COUNTED_STATUSES.map((status) =>
-        this.documents.listDocuments(workspaceId, { limit: 1, status }).pipe(map((r) => r.total)),
-      ),
+    // Consultas en serie, no en paralelo: la cuenta AWS limita las ejecuciones
+    // concurrentes de Lambda y una ráfaga de 6 peticiones provocaba 503 (CDM-133).
+    const counts = COUNTED_STATUSES.map((status) =>
+      this.documents.listDocuments(workspaceId, { limit: 1, status }).pipe(map((r) => r.total)),
     );
     const recentWindow = this.documents.listDocuments(workspaceId, {
       limit: WINDOW_LIMIT,
       created_after: windowStart.toISOString(),
     });
 
-    return forkJoin([counts, recentWindow]).pipe(
-      map(([totals, window]) => {
+    return from(counts).pipe(
+      concatMap((count) => count),
+      toArray(),
+      concatMap((totals) => recentWindow.pipe(map((window) => ({ totals, window })))),
+      map(({ totals, window }) => {
         const byStatus = Object.fromEntries(
           COUNTED_STATUSES.map((status, index) => [status, totals[index]]),
         ) as Record<CountedStatus, number>;
