@@ -36,3 +36,8 @@ export interface AuthResponse {
   tokens: AuthTokens;
   user: UserSession;
 }
+
+export interface RegisterResult {
+  /** false cuando Cognito exige confirmar la cuenta con el código enviado por correo. */
+  userConfirmed: boolean;
+}

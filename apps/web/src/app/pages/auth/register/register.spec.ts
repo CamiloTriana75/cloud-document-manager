@@ -2,8 +2,10 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { of } from 'rxjs';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 
+import { AuthService } from '../../../core/auth/auth.service';
 import { RegisterComponent } from './register';
 
 describe('RegisterComponent', () => {
@@ -64,5 +66,25 @@ describe('RegisterComponent', () => {
     component.onSubmit();
 
     expect(navigate).toHaveBeenCalledWith(['/']);
+  });
+
+  it('si Cognito exige confirmar la cuenta, lleva a la pantalla de código con el correo (CDM-133)', () => {
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const auth = TestBed.inject(AuthService);
+    vi.spyOn(auth, 'register').mockReturnValue(of({ userConfirmed: false }));
+    const login = vi.spyOn(auth, 'login');
+    component.form.setValue({
+      name: 'Ana Pérez',
+      email: 'ana@empresa.com',
+      password: 'Segura123!',
+      confirmPassword: 'Segura123!',
+    });
+
+    component.onSubmit();
+
+    expect(login).not.toHaveBeenCalled();
+    expect(navigate).toHaveBeenCalledWith(['/auth/confirm'], {
+      queryParams: { email: 'ana@empresa.com' },
+    });
   });
 });

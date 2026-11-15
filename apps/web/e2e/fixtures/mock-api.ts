@@ -7,9 +7,22 @@ export const MOCK_USER = {
   emailVerified: true,
 };
 
+/** JWT sin firma con el formato del modo de desarrollo (`prefijo.header.payload.firma`). */
+function mockJwt(prefix: string, tokenUse: 'id' | 'access'): string {
+  const b64 = (value: object) => Buffer.from(JSON.stringify(value)).toString('base64url');
+  const payload = {
+    sub: MOCK_USER.sub,
+    email: MOCK_USER.email,
+    name: MOCK_USER.name,
+    email_verified: true,
+    token_use: tokenUse,
+  };
+  return `${prefix}.${b64({ alg: 'none', typ: 'JWT' })}.${b64(payload)}.mock-signature`;
+}
+
 export const MOCK_TOKENS = {
-  accessToken: 'mock-jwt-access-token',
-  idToken: 'mock-jwt-id-token',
+  accessToken: mockJwt('mock-access-token-e2e', 'access'),
+  idToken: mockJwt('mock-id-token-e2e', 'id'),
   refreshToken: 'mock-jwt-refresh-token',
   expiresAt: Date.now() + 3600 * 1000,
 };
